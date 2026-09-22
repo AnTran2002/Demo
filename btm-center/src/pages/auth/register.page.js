@@ -6,34 +6,61 @@ import { Router } from "../../core/router.js";
 
 export function renderRegisterPage(container) {
   container.innerHTML = `
-    <div class="auth-box">
-      <h2>Đăng ký</h2>
-      <form id="register-form">
-        <label>Vai trò
-          <select name="role">
-            <option value="student">Học sinh</option>
-            <option value="teacher">Giáo viên</option>
-          </select>
-        </label>
-        <input name="fullName" placeholder="Họ tên" required />
-        <input name="username" placeholder="Tài khoản" required />
-        <input name="password" type="password" placeholder="Mật khẩu" required />
-        <label id="subject-field">Môn giảng dạy
-          <select name="subject">
-            ${SUBJECTS.map((s) => `<option value="${s}">${SUBJECT_LABELS[s]}</option>`).join("")}
-          </select>
-        </label>
-        <button type="submit">Đăng ký</button>
-      </form>
-      <p id="register-error" class="error"></p>
-      <p>Đã có tài khoản? <a href="#/login">Đăng nhập</a></p>
+    <div class="auth-page">
+      <div class="auth-card">
+        <header class="auth-header">
+          <div class="auth-logo" aria-hidden="true">
+            <svg viewBox="0 0 48 46" fill="currentColor"><path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/></svg>
+          </div>
+          <h1 class="auth-title">Tạo tài khoản</h1>
+          <p class="auth-subtitle">Đăng ký để bắt đầu sử dụng hệ thống</p>
+        </header>
+
+        <form id="register-form" class="auth-form">
+          <div class="form-field">
+            <label for="reg-role">Vai trò</label>
+            <select id="reg-role" name="role">
+              <option value="student">Học sinh</option>
+              <option value="teacher">Giáo viên</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="reg-name">Họ tên</label>
+            <input id="reg-name" name="fullName" placeholder="Nhập họ tên" required />
+          </div>
+
+          <div class="form-field">
+            <label for="reg-username">Tài khoản</label>
+            <input id="reg-username" name="username" placeholder="Nhập tài khoản" required />
+          </div>
+
+          <div class="form-field">
+            <label for="reg-password">Mật khẩu</label>
+            <input id="reg-password" name="password" type="password" placeholder="Nhập mật khẩu" required />
+          </div>
+
+          <div class="form-field" id="subject-field">
+            <label for="reg-subject">Môn giảng dạy</label>
+            <select id="reg-subject" name="subject">
+              ${SUBJECTS.map((s) => `<option value="${s}">${SUBJECT_LABELS[s]}</option>`).join("")}
+            </select>
+          </div>
+
+          <p id="register-error" class="form-error" role="alert" hidden></p>
+
+          <button type="submit" class="btn-primary">Đăng ký</button>
+        </form>
+
+        <p class="auth-switch">Đã có tài khoản? <a href="#/login">Đăng nhập</a></p>
+      </div>
     </div>
   `;
 
-  const roleSelect = container.querySelector('select[name="role"]');
+  const roleSelect = container.querySelector("#reg-role");
   const subjectField = container.querySelector("#subject-field");
   const toggleSubject = () => {
-    subjectField.style.display = roleSelect.value === "teacher" ? "block" : "none";
+    subjectField.style.display = roleSelect.value === "teacher" ? "flex" : "none";
   };
   roleSelect.addEventListener("change", toggleSubject);
   toggleSubject();
@@ -41,6 +68,8 @@ export function renderRegisterPage(container) {
   container.querySelector("#register-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
+    const errorBox = container.querySelector("#register-error");
+    errorBox.hidden = true;
     try {
       if (form.get("role") === "teacher") {
         registerTeacher({
@@ -58,7 +87,8 @@ export function renderRegisterPage(container) {
       }
       Router.navigate("/login");
     } catch (err) {
-      container.querySelector("#register-error").textContent = err.message;
+      errorBox.textContent = err.message;
+      errorBox.hidden = false;
     }
   });
 }
