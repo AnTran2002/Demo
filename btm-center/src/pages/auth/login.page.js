@@ -15,7 +15,7 @@ export function renderLoginPage(container) {
       <div class="auth-card">
         <header class="auth-header">
           <div class="auth-logo" aria-hidden="true">
-            <img src="public/BTM-logo.svg" alt="BTM Center">
+            <img src="../assets/logo.png" alt="BTM Center">
           </div>
           <h1 class="auth-title">Trung tâm Dạy học BTM</h1>
           <p class="auth-subtitle">Chào mừng bạn quay trở lại!</p>
