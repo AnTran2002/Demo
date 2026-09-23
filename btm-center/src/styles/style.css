@@ -106,9 +106,16 @@ body {
   border-radius: 20px;
   background: linear-gradient(135deg, #a05bff, #6a1bff);
   box-shadow: 0 14px 26px -10px rgba(122, 40, 255, 0.6);
+  overflow: hidden;
 }
 
 .auth-logo svg { width: 38px; height: 38px; }
+.auth-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
 
 .auth-title {
   margin: 0;

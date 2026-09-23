@@ -2,6 +2,7 @@
 import { login } from "../../modules/auth/auth.service.js";
 import { Session } from "../../core/session.js";
 import { Router } from "../../core/router.js";
+import logoImg from "../../assets/logo.png";
 
 const ICON_USER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const ICON_LOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
@@ -15,7 +16,7 @@ export function renderLoginPage(container) {
       <div class="auth-card">
         <header class="auth-header">
           <div class="auth-logo" aria-hidden="true">
-            <img src="../assets/logo.png" alt="BTM Center">
+            <img src="${logoImg}" alt="BTM Center">
           </div>
           <h1 class="auth-title">Trung tâm Dạy học BTM</h1>
           <p class="auth-subtitle">Chào mừng bạn quay trở lại!</p>
