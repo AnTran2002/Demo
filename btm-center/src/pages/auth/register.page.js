@@ -30,6 +30,26 @@ export function renderRegisterPage(container) {
             <input id="reg-name" name="fullName" placeholder="Nhập họ tên" required />
           </div>
 
+          <div class="form-row">
+            <div class="form-field">
+              <label for="reg-gender">Giới tính</label>
+              <select id="reg-gender" name="gender" required>
+                <option value="" disabled selected>Chọn giới tính</option>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="reg-dob">Ngày sinh</label>
+              <input id="reg-dob" name="dob" type="date" max="${new Date().toISOString().slice(0, 10)}" required />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="reg-email">Gmail (duy nhất)</label>
+            <input id="reg-email" name="email" type="email" placeholder="VD: nguyenvanhung@gmail.com" autocomplete="email" required />
+          </div>
+
           <div class="form-field">
             <label for="reg-username">Tài khoản</label>
             <input id="reg-username" name="username" placeholder="Nhập tài khoản" required />
@@ -37,7 +57,13 @@ export function renderRegisterPage(container) {
 
           <div class="form-field">
             <label for="reg-password">Mật khẩu</label>
-            <input id="reg-password" name="password" type="password" placeholder="Nhập mật khẩu" required />
+            <input id="reg-password" name="password" type="password" placeholder="8–16 ký tự" autocomplete="new-password" required />
+            <span class="form-hint">8–16 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</span>
+          </div>
+
+          <div class="form-field">
+            <label for="reg-confirm">Xác nhận mật khẩu</label>
+            <input id="reg-confirm" name="confirmPassword" type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password" required />
           </div>
 
           <div class="form-field" id="subject-field">
@@ -65,25 +91,40 @@ export function renderRegisterPage(container) {
   roleSelect.addEventListener("change", toggleSubject);
   toggleSubject();
 
+  const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,16}$/;
+
   container.querySelector("#register-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
     const errorBox = container.querySelector("#register-error");
     errorBox.hidden = true;
     try {
+      const password = form.get("password");
+      const confirm = form.get("confirmPassword");
+      const dob = form.get("dob");
+      if (!PASSWORD_RE.test(password)) {
+        throw new Error("Mật khẩu phải 8–16 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt");
+      }
+      if (password !== confirm) {
+        throw new Error("Xác nhận mật khẩu không khớp");
+      }
+      if (!dob || new Date(dob) >= new Date()) {
+        throw new Error("Ngày sinh không hợp lệ");
+      }
+
+      const base = {
+        username: form.get("username"),
+        password,
+        email: form.get("email"),
+        fullName: form.get("fullName"),
+        gender: form.get("gender"),
+        dob,
+      };
+
       if (form.get("role") === "teacher") {
-        registerTeacher({
-          username: form.get("username"),
-          password: form.get("password"),
-          fullName: form.get("fullName"),
-          subject: form.get("subject"),
-        });
+        registerTeacher({ ...base, subject: form.get("subject") });
       } else {
-        registerStudent({
-          username: form.get("username"),
-          password: form.get("password"),
-          fullName: form.get("fullName"),
-        });
+        registerStudent(base);
       }
       Router.navigate("/login");
     } catch (err) {

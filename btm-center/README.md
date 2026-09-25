@@ -51,6 +51,11 @@ src/
 
 ## Tài khoản mặc định (seed)
 - Admin: `admin` / `admin123`
+- Giáo viên: `teacher` / `123456`
+- Học sinh: `student` / `123456`
+
+> Các tài khoản default luôn được đảm bảo tồn tại khi app khởi động (kể cả khi
+> LocalStorage đã có dữ liệu cũ chỉ chứa admin).
 
 # TỔNG HỢP TÀI LIỆU PHÂN TÍCH
 

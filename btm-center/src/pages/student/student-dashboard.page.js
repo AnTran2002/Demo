@@ -23,6 +23,15 @@ import {
   ATTENDANCE_LABELS,
 } from "../../data/constants.js";
 
+const genderBadge = (u) => {
+  const g = String(u.gender || "").toLowerCase();
+  if (g.startsWith("nữ") || g.startsWith("nam")) {
+    const female = g.startsWith("nữ");
+    return `<span class="badge ${female ? "gender-female" : "gender-male"}">${female ? "Nữ" : "Nam"}</span>`;
+  }
+  return `<span class="muted">—</span>`;
+};
+
 const statCard = (icon, value, label) => `
   <div class="stat-card">
     <span class="stat-icon">${icon}</span>
@@ -58,8 +67,6 @@ export function renderStudentDashboard(container) {
   renderShell(container, { title: "Lịch học", items: tabs });
   const content = container.querySelector("#tab-content");
 
-  let detailClassId = null;
-
   container
     .querySelectorAll(".nav-item[data-tab]")
     .forEach((btn) =>
@@ -67,7 +74,6 @@ export function renderStudentDashboard(container) {
     );
 
   function switchTab(id) {
-    detailClassId = null;
     container
       .querySelectorAll(".nav-item[data-tab]")
       .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
@@ -109,6 +115,45 @@ function renderOverview(el, student) {
         ? `<div class="class-grid">${d.myClasses.map((c) => myClassCard(c)).join("")}</div>`
         : `<div class="empty panel">Bạn chưa đăng ký lớp nào. Hãy vào mục “Đăng ký lớp” để bắt đầu.</div>`
     }
+
+    <div class="section-title">Bảng điểm của tôi</div>
+    <div class="panel">
+      ${(() => {
+        const rows = d.myClasses
+          .map((c) => ({ cls: c, grades: listGradesByStudentInClass(c.id, student.id) }))
+          .filter((r) => r.grades.length);
+        const total = rows.reduce((s, r) => s + r.grades.length, 0);
+        const avg = total
+          ? rows.reduce((s, r) => s + r.grades.reduce((ss, g) => ss + g.score, 0), 0) / total
+          : null;
+        return `
+          <div class="panel-head">
+            <h2 class="panel-title">Theo dõi điểm số</h2>
+            <span class="count-chip">${total} cột điểm${avg !== null ? ` · TBC ${avg.toFixed(1)}` : ""}</span>
+          </div>
+          ${
+            rows.length
+              ? `<div class="table-wrap"><table>
+                  <thead><tr><th>Lớp</th><th>Môn</th><th>Loại</th><th>Điểm</th><th>Ghi chú</th></tr></thead>
+                  <tbody>${rows
+                    .map(
+                      (r) => r.grades.map(
+                        (g) => `
+                          <tr>
+                            <td><strong>${r.cls.className}</strong></td>
+                            <td><span class="badge subject">${subjectLabel(r.cls.subject)}</span></td>
+                            <td>${g.type}</td>
+                            <td><strong>${g.score}</strong></td>
+                            <td class="muted">${g.note || "—"}</td>
+                          </tr>`
+                      ).join("")
+                    )
+                    .join("")}</tbody>
+                </table></div>`
+              : `<div class="empty">Bạn chưa có điểm nào. Điểm số sẽ hiển thị tại đây ngay khi giáo viên nhập.</div>`
+          }`;
+      })()}
+    </div>
   `;
 
   el.querySelectorAll("[data-cancel]").forEach((btn) =>
@@ -124,8 +169,7 @@ function renderOverview(el, student) {
 
   el.querySelectorAll("[data-detail]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      detailClassId = btn.dataset.detail;
-      renderClassDetail(el, student, detailClassId);
+      renderClassDetail(el, student, btn.dataset.detail);
     })
   );
 }
@@ -185,6 +229,28 @@ function renderClassDetail(el, student, classId) {
       <div class="info-box"><span class="info-label">Lịch học</span><span>${formatSchedule(cls.schedule)}</span></div>
       <div class="info-box"><span class="info-label">Sĩ số</span><span>${studentNames.length}/${cls.maxSlot}</span></div>
       <div class="info-box"><span class="info-label">Số buổi đã tạo</span><span>${sessions.length}</span></div>
+    </div>
+
+    <div class="section-title">Bạn cùng lớp (${studentNames.length})</div>
+    <div class="panel">
+      ${
+        studentNames.length
+          ? `<div class="table-wrap"><table>
+              <thead><tr><th>#</th><th>Họ tên</th><th>Giới tính</th><th>Tài khoản</th></tr></thead>
+              <tbody>${studentNames
+                .map(
+                  (s, i) => `
+                    <tr>
+                      <td>${i + 1}</td>
+                      <td><strong>${s.fullName}</strong>${s.id === student.id ? ` <span class="badge active">Bạn</span>` : ""}</td>
+                      <td>${genderBadge(s)}</td>
+                      <td class="muted">@${s.username}</td>
+                    </tr>`
+                )
+                .join("")}</tbody>
+            </table></div>`
+          : `<div class="empty">Lớp chưa có học sinh nào.</div>`
+      }
     </div>
 
     <div class="section-title">Buổi học & tài liệu (${sessions.length})</div>
@@ -248,7 +314,6 @@ function renderClassDetail(el, student, classId) {
   `;
 
   el.querySelector("[data-back]").addEventListener("click", () => {
-    detailClassId = null;
     renderOverview(el, student);
   });
 }

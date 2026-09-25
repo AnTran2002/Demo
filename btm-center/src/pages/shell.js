@@ -67,11 +67,18 @@ export function initials(name = "") {
 
 export function formatSchedule(schedule = []) {
   if (!schedule || !schedule.length) return "Chưa xếp lịch";
+  const dayOf = (v) => WEEKDAYS.find((w) => w.value === v)?.label || String(v);
   return schedule
-    .map((s) => {
-      const day = WEEKDAYS.find((w) => w.value === s.dayOfWeek)?.label || s.dayOfWeek;
-      return `${day} · ${s.start}–${s.end}`;
-    })
+    .slice()
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .reduce((groups, s) => {
+      const key = `${s.start}–${s.end}`;
+      const g = groups.find((x) => x.key === key);
+      if (g) g.days.push(dayOf(s.dayOfWeek));
+      else groups.push({ key, days: [dayOf(s.dayOfWeek)], start: s.start, end: s.end });
+      return groups;
+    }, [])
+    .map((g) => `${g.days.join(", ")} · ${g.start}–${g.end}`)
     .join(" · ");
 }
 

@@ -143,6 +143,18 @@ body {
   gap: 6px;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #8d84b0;
+  line-height: 1.4;
+}
+
 .form-field label {
   font-size: 13px;
   font-weight: 600;
@@ -428,7 +440,7 @@ body {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 26px 28px 44px;
+  padding: 28px 30px 48px;
 }
 
 /* Thẻ chờ / badge */
@@ -463,9 +475,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding: 22px 26px;
+  gap: 18px;
+  margin-bottom: 26px;
+  padding: 24px 30px;
   color: #fff;
   border-radius: 18px;
   background:
@@ -474,22 +486,37 @@ body {
   box-shadow: 0 18px 40px -18px rgba(43, 10, 94, 0.5);
 }
 
-.welcome-title { margin: 0; font-size: 22px; font-weight: 800; }
-.welcome-sub { margin: 6px 0 0; font-size: 14px; opacity: 0.8; }
+.welcome-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: #fff;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    0 6px 14px rgba(43, 10, 94, 0.45);
+}
+.welcome-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: #fff;
+  opacity: 0.95;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
 .welcome-banner .badge { background: rgba(255, 255, 255, 0.16); color: #fff; }
 
 /* Thẻ thống kê */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: 16px;
+  padding: 20px 22px;
   background: #fff;
   border-radius: 16px;
   box-shadow: var(--shadow-card);
@@ -524,14 +551,14 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--line);
 }
 
 .panel-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--brand-ink); }
 
 .count-chip {
-  padding: 4px 12px;
+  padding: 5px 14px;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
@@ -544,7 +571,7 @@ body {
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 th, td {
-  padding: 12px 20px;
+  padding: 13px 20px;
   text-align: left;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
@@ -569,7 +596,7 @@ td.actions { text-align: right; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 13px 20px;
+  padding: 15px 24px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -637,7 +664,7 @@ td.actions { text-align: right; }
 
 /* Grid thẻ lớp học */
 .section-title {
-  margin: 26px 0 14px;
+  margin: 28px 0 16px;
   font-size: 15px;
   font-weight: 800;
   color: var(--brand-ink);
@@ -646,14 +673,14 @@ td.actions { text-align: right; }
 .class-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .class-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
+  gap: 14px;
+  padding: 20px;
   background: #fff;
   border-radius: 16px;
   box-shadow: var(--shadow-card);
@@ -666,19 +693,27 @@ td.actions { text-align: right; }
 
 .class-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .class-name { font-size: 16px; font-weight: 700; color: var(--brand-ink); }
-.class-meta { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--muted); }
+.class-meta { display: flex; flex-direction: column; gap: 9px; font-size: 13px; color: var(--muted); }
 .class-meta span { display: flex; align-items: center; gap: 8px; }
+.class-meta span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .class-meta svg { width: 16px; height: 16px; flex: none; }
-.class-actions { margin-top: auto; }
+.class-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+}
+.class-actions .btn { flex: 1; }
+.class-actions .hint-sm { flex: none; }
 
-.panel .form-error { margin: 12px 20px 18px; }
+.panel .form-error { margin: 14px 24px 20px; }
 
 /* Form tạo lớp */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  padding: 18px 20px 0;
+  gap: 14px;
+  padding: 20px 24px 0;
 }
 
 .form-grid > div { display: flex; flex-direction: column; gap: 6px; }
@@ -686,9 +721,9 @@ td.actions { text-align: right; }
 .form-grid .align-end { justify-content: flex-end; }
 
 /* Tiện ích layout */
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.mt-lg { margin-top: 24px; }
-.mb-lg { margin-bottom: 24px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.mt-lg { margin-top: 28px; }
+.mb-lg { margin-bottom: 28px; }
 
 .empty {
   padding: 36px;
@@ -706,7 +741,7 @@ td.actions { text-align: right; }
   .sidebar-brand { justify-content: center; padding: 0 0 20px; }
   .nav-item { justify-content: center; padding: 12px; }
   .nav-item.logout .nav-label { display: none; }
-  .content { padding: 20px 18px 36px; }
+  .content { padding: 24px 20px 40px; }
   .topbar { padding: 14px 18px; }
   .split { grid-template-columns: 1fr; }
 }
@@ -808,7 +843,7 @@ td.actions .btn:first-child { margin-left: 0; }
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .detail-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -819,15 +854,15 @@ td.actions .btn:first-child { margin-left: 0; }
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 14px;
+  margin-bottom: 24px;
 }
 
 .info-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
+  gap: 6px;
+  padding: 16px 18px;
   font-size: 14px;
   font-weight: 600;
   color: var(--brand-ink);
@@ -859,7 +894,7 @@ td.actions .btn:first-child { margin-left: 0; }
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: end;
-  padding: 18px 20px 0;
+  padding: 20px 24px 0;
 }
 
 .session-form > div { display: flex; flex-direction: column; gap: 6px; }
@@ -895,15 +930,14 @@ td.actions .btn:first-child { margin-left: 0; }
   box-shadow: 0 0 0 4px rgba(134, 59, 255, 0.12);
 }
 
-.popover-error {
-  margin: 12px 20px 18px;
-}
+.popover-error,
+.panel .form-error { margin: 14px 24px 20px; }
 
 .mini-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  padding: 16px 20px 0;
+  gap: 12px;
+  padding: 18px 24px 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -920,11 +954,15 @@ td.actions .btn:first-child { margin-left: 0; }
 /* Chip chấm trạng thái */
 .badge.late { color: #b45309; background: #fdf3e3; }
 
+/* Badge giới tính */
+.badge.gender-male { color: #1d4ed8; background: #dbeafe; }
+.badge.gender-female { color: #be185d; background: #fce7f3; }
+
 /* Điểm danh */
 .att-select { padding: 7px 10px; font-size: 13px; color: var(--text); border: 1.5px solid var(--line); border-radius: 9px; background: var(--field); }
 .att-select:focus { outline: none; border-color: var(--brand); }
 
-.panel-foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
+.panel-foot { display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); }
 .panel-foot .btn { width: auto; }
 
 .session-table th:last-child,
@@ -938,7 +976,7 @@ td.actions .btn:first-child { margin-left: 0; }
   gap: 8px;
 }
 
-.day-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.day-checks { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-bottom: 2px; }
 
 .day-check {
   display: inline-flex;
@@ -1000,7 +1038,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .session-block { border-bottom: 1px solid var(--line); }
 .session-block:last-child { border-bottom: none; }
 
-.mat-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 14px; }
+.mat-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; }
 .mat-chip {
   display: inline-flex;
   align-items: center;
@@ -1013,7 +1051,7 @@ td.actions .btn:first-child { margin-left: 0; }
   border-radius: 10px;
 }
 .mat-chip svg { width: 14px; height: 14px; color: var(--muted); }
-.mat-empty { padding: 0 20px 14px; font-size: 12px; color: var(--muted); }
+.mat-empty { padding: 0 24px 16px; font-size: 12px; color: var(--muted); }
 
 .hint-sm { font-size: 12px; font-style: italic; color: var(--muted); }
 
@@ -1030,7 +1068,7 @@ td.actions .btn:first-child { margin-left: 0; }
 }
 .grade-chip b { color: var(--brand-dark); }
 
-.comment-list { padding: 6px 20px 16px; }
+.comment-list { padding: 10px 24px 18px; }
 .comment-item { padding: 12px 0; border-bottom: 1px dashed var(--line); }
 .comment-item:last-child { border-bottom: none; }
 

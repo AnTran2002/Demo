@@ -187,6 +187,37 @@ function renderOverview(el, teacher) {
       </div>
       ${d.classes.length === 0 ? `<div class="empty">Bạn chưa mở lớp nào — hãy mở lớp ở mục “Lớp của tôi”.</div>` : ""}
     </div>
+
+    <div class="panel mt-lg">
+      <div class="panel-head">
+        <h2 class="panel-title">Bảng điểm theo lớp</h2>
+        <span class="count-chip">${d.classes.reduce((s, c) => s + listGradesByClass(c.id).length, 0)} cột điểm</span>
+      </div>
+      ${
+        d.classes.length
+          ? `<div class="table-wrap"><table>
+              <thead>
+                <tr><th>Lớp</th><th>Môn</th><th>Sĩ số</th><th>HS đã chấm điểm</th><th>Số cột điểm</th><th>Điểm TBC</th></tr>
+              </thead>
+              <tbody>${d.classes
+                .map((c) => {
+                  const gs = listGradesByClass(c.id);
+                  const scored = new Set(gs.map((g) => g.studentId)).size;
+                  const avg = gs.length ? gs.reduce((s, g) => s + g.score, 0) / gs.length : null;
+                  return `<tr>
+                    <td><strong>${c.className}</strong></td>
+                    <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                    <td>${c.enrolled}</td>
+                    <td>${scored}/${c.enrolled}</td>
+                    <td>${gs.length}</td>
+                    <td><strong>${avg !== null ? avg.toFixed(1) : "—"}</strong></td>
+                  </tr>`;
+                })
+                .join("")}</tbody>
+            </table></div>`
+          : `<div class="empty">Chưa có lớp nào nên chưa có bảng thống kê điểm.</div>`
+      }
+    </div>
   `;
 
   el.querySelectorAll("[data-go]").forEach((a) =>
