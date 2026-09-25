@@ -10,3 +10,7 @@ export function listGradesByStudentInClass(classId, studentId) {
     (g) => g.classId === classId && g.studentId === studentId
   );
 }
+
+export function listGradesByClass(classId) {
+  return DB.getAll("grades").filter((g) => g.classId === classId);
+}

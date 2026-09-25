@@ -1,7 +1,8 @@
 // pages/admin/admin-dashboard.page.js — Phụ trách: Thành viên B
 import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
-import { getAdminOverview } from "../../modules/dashboard/dashboard.service.js";
+import { getAdminOverview, getAdminAccountClasses } from "../../modules/dashboard/dashboard.service.js";
 import { toggleActive } from "../../modules/users/users.service.js";
+import { subjectLabel } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
 
@@ -66,7 +67,7 @@ function renderOverview(el) {
                   <div class="row-item">
                     <div>
                       <strong class="row-title">${c.className}</strong>
-                      <span class="row-sub">${c.teacherName} · <span class="badge subject">${c.subject}</span></span>
+                      <span class="row-sub">${c.teacherName} · <span class="badge subject">${subjectLabel(c.subject)}</span></span>
                     </div>
                     <span class="row-end muted">${c.enrolled}/${c.maxSlot}</span>
                   </div>`
@@ -109,14 +110,23 @@ function renderOverview(el) {
   );
 }
 
-function renderAccounts(el) {
+function renderAccounts(el, filterRole = "") {
   const d = getAdminOverview();
+  const users = filterRole ? d.users.filter((u) => u.role === filterRole) : d.users;
 
   el.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Danh sách tài khoản</h2>
-        <span class="count-chip">${d.users.length} tài khoản</span>
+        <div class="filter-row">
+          <select id="role-filter">
+            <option value="">Tất cả vai trò</option>
+            <option value="admin">${ROLE_LABELS.admin}</option>
+            <option value="teacher">${ROLE_LABELS.teacher}</option>
+            <option value="student">${ROLE_LABELS.student}</option>
+          </select>
+          <span class="count-chip">${users.length} tài khoản</span>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -124,10 +134,10 @@ function renderAccounts(el) {
             <tr><th>#</th><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>
           </thead>
           <tbody>
-            ${d.users
+            ${users
               .map(
                 (u, i) => `
-                  <tr>
+                  <tr data-account="${u.id}">
                     <td>${i + 1}</td>
                     <td><strong>${u.fullName}</strong></td>
                     <td>@${u.username}</td>
@@ -137,6 +147,13 @@ function renderAccounts(el) {
                       <button class="btn btn-sm btn-toggle" data-id="${u.id}" data-active="${u.active}">
                         ${u.active ? "Khóa" : "Mở khóa"}
                       </button>
+                      <button class="btn btn-sm btn-toggle" data-detail="${u.id}">Chi tiết</button>
+                    </td>
+                  </tr>
+                  <tr class="account-detail" data-detail-of="${u.id}" hidden>
+                    <td></td>
+                    <td colspan="5">
+                      ${accountClassesBlock(u)}
                     </td>
                   </tr>`
               )
@@ -147,12 +164,47 @@ function renderAccounts(el) {
     </div>
   `;
 
-  el.querySelectorAll(".btn-toggle").forEach((btn) =>
+  const filterSel = el.querySelector("#role-filter");
+  if (filterSel) {
+    filterSel.value = filterRole;
+    filterSel.addEventListener("change", (e) => renderAccounts(el, e.target.value));
+  }
+
+  el.querySelectorAll(".btn-toggle[data-id]").forEach((btn) =>
     btn.addEventListener("click", () => {
       toggleActive(btn.dataset.id);
-      renderAccounts(el);
+      renderAccounts(el, filterRole);
     })
   );
+
+  el.querySelectorAll("[data-detail]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const row = el.querySelector(`tr.account-detail[data-detail-of="${btn.dataset.detail}"]`);
+      if (row) row.hidden = !row.hidden;
+    })
+  );
+}
+
+function accountClassesBlock(user) {
+  const classes = getAdminAccountClasses(user);
+  if (!classes.length) {
+    return `<span class="muted">Tài khoản chưa tham gia lớp nào.</span>`;
+  }
+  return `
+    <div class="acct-classes">
+      ${classes
+        .map(
+          (c) => `
+            <div class="acct-class">
+              <span><strong>${c.className}</strong></span>
+              <span class="badge subject">${subjectLabel(c.subject)}</span>
+              <span class="muted">${formatSchedule(c.schedule)}</span>
+              <span class="muted">${c.enrolled}/${c.maxSlot} HS</span>
+              <span class="badge ${c.status === "open" ? "open" : "closed"}">${c.status === "open" ? "Đang mở" : "Đã đóng"}</span>
+            </div>`
+        )
+        .join("")}
+    </div>`;
 }
 
 function renderClasses(el) {
@@ -176,7 +228,7 @@ function renderClasses(el) {
                   <tr>
                     <td>${i + 1}</td>
                     <td><strong>${c.className}</strong></td>
-                    <td><span class="badge subject">${c.subject}</span></td>
+                    <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
                     <td>${c.teacherName}</td>
                     <td>
                       <span class="slot-cell">

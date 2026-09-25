@@ -37,3 +37,27 @@ export const WEEKDAYS = [
   { value: 7, label: "Thứ 7" },
   { value: 8, label: "Chủ nhật" },
 ];
+
+export const ATTENDANCE_LABELS = {
+  present: "Có mặt",
+  absent: "Vắng",
+  late: "Trễ",
+};
+
+export const GRADE_TYPES = ["Thường xuyên", "Định kỳ", "Học kỳ"];
+
+export function subjectLabel(subject) {
+  return SUBJECT_LABELS[subject] || subject || "—";
+}
+
+export function todayStr() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+export function formatDate(iso) {
+  if (!iso) return "—";
+  const [y, m, d] = String(iso).split("-");
+  return `${d}/${m}/${y}`;
+}

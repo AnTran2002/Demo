@@ -21,3 +21,29 @@ export function listOpenClasses(subject = null) {
   const classes = DB.getAll("classes").filter((c) => c.status === "open");
   return subject ? classes.filter((c) => c.subject === subject) : classes;
 }
+
+export function getClassById(classId) {
+  return DB.findById("classes", classId);
+}
+
+export function listAllClasses() {
+  return DB.getAll("classes");
+}
+
+export function setClassStatus(classId, status) {
+  return DB.update("classes", classId, { status });
+}
+
+export function updateClassInfo(classId, patch) {
+  return DB.update("classes", classId, patch);
+}
+
+export function listStudentsOfClass(classId) {
+  const enrollments = DB.getAll("enrollments").filter(
+    (e) => e.classId === classId && e.status === "active"
+  );
+  const users = DB.getAll("users");
+  return enrollments
+    .map((e) => users.find((u) => u.id === e.studentId) || null)
+    .filter(Boolean);
+}

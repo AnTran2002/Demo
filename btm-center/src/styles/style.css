@@ -792,3 +792,267 @@ section {
   .auth-card { padding: 30px 22px 24px; }
   .auth-title { font-size: 20px; }
 }
+
+/* ============ Các thành phần nghiệp vụ (buổi học, điểm danh, điểm, nhận xét) ============ */
+
+.right { text-align: right; }
+
+td.actions { white-space: nowrap; }
+td.actions .btn { margin-left: 6px; }
+td.actions .btn:first-child { margin-left: 0; }
+
+/* Đầu trang chi tiết */
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.detail-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.detail-name { margin: 0; font-size: 20px; font-weight: 800; color: var(--brand-ink); }
+
+/* Khối thông tin */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.info-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-ink);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+
+/* Panel chỉnh sửa */
+.edit-panel { margin-bottom: 18px; }
+.edit-panel summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand);
+  font-weight: 700;
+}
+.edit-panel summary::-webkit-details-marker { display: none; }
+.edit-panel summary svg { width: 16px; height: 16px; }
+
+/* Form buổi học */
+.session-form {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 18px 20px 0;
+}
+
+.session-form > div { display: flex; flex-direction: column; gap: 6px; }
+.session-form label { font-size: 12px; font-weight: 600; color: #443d63; }
+.session-title-field { min-width: 220px; }
+
+.session-form input,
+.session-form select,
+.mini-form input,
+.mini-form select,
+.mini-form textarea,
+.filter-row select,
+.enroll-filter select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.session-form input:focus,
+.mini-form input:focus,
+.mini-form select:focus,
+.mini-form textarea:focus,
+.filter-row select:focus,
+.enroll-filter select:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px rgba(134, 59, 255, 0.12);
+}
+
+.popover-error {
+  margin: 12px 20px 18px;
+}
+
+.mini-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mini-form > div { display: flex; flex-direction: column; gap: 6px; }
+.mini-form .full { grid-column: 1 / -1; }
+.mini-form label { font-size: 12px; font-weight: 600; color: #443d63; }
+.mini-form textarea { resize: vertical; font-family: inherit; }
+.mini-form .align-end { justify-content: flex-end; }
+
+/* Ô bấm cảnh báo */
+.btn-warn { background: #fff; color: #b45309; border: 1.5px solid #f0d3a0; }
+.btn-warn:hover { background: #fdf3e3; }
+
+/* Chip chấm trạng thái */
+.badge.late { color: #b45309; background: #fdf3e3; }
+
+/* Điểm danh */
+.att-select { padding: 7px 10px; font-size: 13px; color: var(--text); border: 1.5px solid var(--line); border-radius: 9px; background: var(--field); }
+.att-select:focus { outline: none; border-color: var(--brand); }
+
+.panel-foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
+.panel-foot .btn { width: auto; }
+
+.session-table th:last-child,
+.session-table td:last-child { text-align: right; }
+
+/* Chỉnh sửa lịch - ngày học */
+.form-grid-days {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.day-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.day-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #443d63;
+  background: var(--field);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.day-check input { accent-color: var(--brand); margin: 0; }
+
+.day-check:has(input:checked) {
+  color: var(--brand-dark);
+  background: #f2ecff;
+  border-color: #dcc7ff;
+}
+
+/* Bảng tuần */
+.week-table th { text-align: center; font-size: 12px; }
+.week-table td { text-align: center; white-space: normal; }
+.week-table .week-class-col { text-align: left; min-width: 160px; }
+.week-table .badge { display: block; width: fit-content; margin: 8px 0 0; }
+
+.slot-chip {
+  display: inline-block;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  background: #f2ecff;
+  border: 1px solid #dcc7ff;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Lọc trong trang */
+.filter-row { display: flex; align-items: center; gap: 10px; }
+.filter-row select { width: auto; min-width: 160px; }
+
+.enroll-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.enroll-filter-label { font-size: 13px; font-weight: 700; color: #443d63; }
+.enroll-filter select { width: auto; min-width: 170px; }
+
+/* Chi tiết buổi học cho học sinh */
+.session-block { border-bottom: 1px solid var(--line); }
+.session-block:last-child { border-bottom: none; }
+
+.mat-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 14px; }
+.mat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  font-size: 13px;
+  color: #443d63;
+  background: var(--field);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+}
+.mat-chip svg { width: 14px; height: 14px; color: var(--muted); }
+.mat-empty { padding: 0 20px 14px; font-size: 12px; color: var(--muted); }
+
+.hint-sm { font-size: 12px; font-style: italic; color: var(--muted); }
+
+/* Điểm số & nhận xét */
+.grade-chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #443d63;
+  background: var(--field);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.grade-chip b { color: var(--brand-dark); }
+
+.comment-list { padding: 6px 20px 16px; }
+.comment-item { padding: 12px 0; border-bottom: 1px dashed var(--line); }
+.comment-item:last-child { border-bottom: none; }
+
+.comment-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.comment-head b { font-size: 13px; color: var(--brand-ink); }
+.comment-head small { font-size: 12px; color: var(--muted); }
+.comment-item p { margin: 6px 0 0; font-size: 14px; color: var(--text); line-height: 1.5; }
+
+/* Chi tiết tài khoản (Admin) */
+.acct-classes { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
+
+.acct-class {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #faf9ff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+/* Demo chips trên trang đăng nhập */
+.demo-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }

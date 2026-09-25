@@ -22,3 +22,18 @@ export function markAttendance(sessionId, studentId, status) {
 export function listAttendanceBySession(sessionId) {
   return DB.getAll("attendance").filter((a) => a.sessionId === sessionId);
 }
+
+export function getSessionById(sessionId) {
+  return DB.findById("sessions", sessionId);
+}
+
+export function listUpcomingSessionsByClass(classId, fromDate) {
+  const today = fromDate || new Date().toISOString().slice(0, 10);
+  return DB.getAll("sessions")
+    .filter((s) => s.classId === classId && s.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function hasAttendance(sessionId) {
+  return DB.getAll("attendance").some((a) => a.sessionId === sessionId);
+}

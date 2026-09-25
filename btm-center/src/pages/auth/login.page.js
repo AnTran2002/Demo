@@ -52,7 +52,11 @@ export function renderLoginPage(container) {
 
         <div class="demo-hint">
           <span class="demo-label">Tài khoản demo:</span>
-          <button type="button" class="demo-chip" data-username="admin" data-password="admin123">admin / admin123</button>
+          <div class="demo-chips">
+            <button type="button" class="demo-chip" data-username="admin" data-password="admin123">admin / admin123</button>
+            <button type="button" class="demo-chip" data-username="teacher" data-password="123456">teacher / 123456</button>
+            <button type="button" class="demo-chip" data-username="student" data-password="123456">student / 123456</button>
+          </div>
         </div>
       </div>
     </div>
@@ -110,9 +114,11 @@ export function renderLoginPage(container) {
     attemptLogin(data.get("username"), data.get("password"));
   });
 
-  container.querySelector(".demo-chip").addEventListener("click", function () {
-    usernameInput.value = this.dataset.username;
-    passwordInput.value = this.dataset.password;
-    attemptLogin(this.dataset.username, this.dataset.password);
+  container.querySelectorAll(".demo-chip").forEach((chip) => {
+    chip.addEventListener("click", function () {
+      usernameInput.value = this.dataset.username;
+      passwordInput.value = this.dataset.password;
+      attemptLogin(this.dataset.username, this.dataset.password);
+    });
   });
 }

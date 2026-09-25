@@ -16,3 +16,7 @@ export function listCommentsByStudent(classId, studentId) {
     (c) => c.classId === classId && c.studentId === studentId
   );
 }
+
+export function listCommentsByClass(classId) {
+  return DB.getAll("comments").filter((c) => c.classId === classId);
+}
