@@ -1,6 +1,6 @@
 // pages/auth/register.page.js — Phụ trách: Thành viên A
-// Chỉ Giáo viên và Học sinh được đăng ký (không có lựa chọn Admin).
-import { registerTeacher, registerStudent } from "../../modules/auth/auth.service.js";
+// Chỉ Giáo viên, Học sinh và Phụ huynh được đăng ký (không có lựa chọn Admin).
+import { registerTeacher, registerStudent, registerParent } from "../../modules/auth/auth.service.js";
 import { SUBJECTS, SUBJECT_LABELS } from "../../data/constants.js";
 import { Router } from "../../core/router.js";
 
@@ -22,6 +22,7 @@ export function renderRegisterPage(container) {
             <select id="reg-role" name="role">
               <option value="student">Học sinh</option>
               <option value="teacher">Giáo viên</option>
+              <option value="parent">Phụ huynh</option>
             </select>
           </div>
 
@@ -73,6 +74,12 @@ export function renderRegisterPage(container) {
             </select>
           </div>
 
+          <div class="form-field" id="student-id-field">
+            <label for="reg-student-id">Mã học sinh liên kết</label>
+            <input id="reg-student-id" name="studentId" placeholder="Nhập mã học sinh" />
+            <span class="form-hint">Mã học sinh được hiển thị trên dashboard học sinh, ví dụ: s-01</span>
+          </div>
+
           <p id="register-error" class="form-error" role="alert" hidden></p>
 
           <button type="submit" class="btn-primary">Đăng ký</button>
@@ -85,11 +92,13 @@ export function renderRegisterPage(container) {
 
   const roleSelect = container.querySelector("#reg-role");
   const subjectField = container.querySelector("#subject-field");
-  const toggleSubject = () => {
+  const studentIdField = container.querySelector("#student-id-field");
+  const toggleRoleFields = () => {
     subjectField.style.display = roleSelect.value === "teacher" ? "flex" : "none";
+    studentIdField.style.display = roleSelect.value === "parent" ? "flex" : "none";
   };
-  roleSelect.addEventListener("change", toggleSubject);
-  toggleSubject();
+  roleSelect.addEventListener("change", toggleRoleFields);
+  toggleRoleFields();
 
   const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,16}$/;
 
@@ -123,6 +132,8 @@ export function renderRegisterPage(container) {
 
       if (form.get("role") === "teacher") {
         registerTeacher({ ...base, subject: form.get("subject") });
+      } else if (form.get("role") === "parent") {
+        registerParent({ ...base, studentId: form.get("studentId") });
       } else {
         registerStudent(base);
       }

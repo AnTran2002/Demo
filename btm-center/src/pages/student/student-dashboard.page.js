@@ -5,8 +5,11 @@ import { renderShell, ICONS, formatSchedule } from "../shell.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
 import {
   enroll,
-  cancelEnrollment,
 } from "../../modules/enrollment/enrollment.service.js";
+import {
+  requestCancelClass,
+  getPendingRequest,
+} from "../../modules/notifications/notifications.service.js";
 import {
   listSessionsByClass,
   listAttendanceBySession,
@@ -99,6 +102,7 @@ function renderOverview(el, student) {
       <div>
         <h2 class="welcome-title">Xin chào, ${student.fullName}!</h2>
         <p class="welcome-sub">Bạn đang theo học ${d.myClasses.length} lớp trong trung tâm.</p>
+        <p class="welcome-sub">Mã học sinh: <strong>${student.id}</strong> — phụ huynh dùng mã này để liên kết tài khoản phụ huynh.</p>
       </div>
       <span class="badge student">Học sinh</span>
     </div>
@@ -112,7 +116,7 @@ function renderOverview(el, student) {
     <div class="section-title">Lịch học của tôi</div>
     ${
       d.myClasses.length
-        ? `<div class="class-grid">${d.myClasses.map((c) => myClassCard(c)).join("")}</div>`
+        ? `<div class="class-grid">${d.myClasses.map((c) => myClassCard(c, student.id)).join("")}</div>`
         : `<div class="empty panel">Bạn chưa đăng ký lớp nào. Hãy vào mục “Đăng ký lớp” để bắt đầu.</div>`
     }
 
@@ -156,10 +160,10 @@ function renderOverview(el, student) {
     </div>
   `;
 
-  el.querySelectorAll("[data-cancel]").forEach((btn) =>
+  el.querySelectorAll("[data-request-cancel]").forEach((btn) =>
     btn.addEventListener("click", () => {
       try {
-        cancelEnrollment(btn.dataset.cancel);
+        requestCancelClass(student.id, btn.dataset.requestCancel);
         renderOverview(el, student);
       } catch (err) {
         flash(err.message);
@@ -178,8 +182,9 @@ function canCancel(classId) {
   return listSessionsByClass(classId).length === 0;
 }
 
-const myClassCard = (c) => {
+const myClassCard = (c, studentId) => {
   const cancellable = canCancel(c.id);
+  const pending = getPendingRequest(studentId, c.id);
   const nextLabel = c.nextSession
     ? `Buổi tới: ${formatDate(c.nextSession.date)} · ${c.nextSession.title || "Chưa có tiêu đề"}`
     : "Chưa có buổi học nào";
@@ -198,9 +203,11 @@ const myClassCard = (c) => {
     <div class="class-actions">
       <button class="btn btn-sm btn-primary" data-detail="${c.id}">Xem chi tiết</button>
       ${
-        cancellable
-          ? `<button class="btn btn-sm btn-danger" data-cancel="${c.enrollmentId}">Hủy đăng ký</button>`
-          : `<span class="hint-sm">Đã có buổi học, không thể hủy</span>`
+        pending
+          ? `<span class="hint-sm">Đã gửi yêu cầu hủy — chờ phụ huynh xác nhận</span>`
+          : cancellable
+            ? `<button class="btn btn-sm btn-danger" data-request-cancel="${c.id}">Gửi yêu cầu hủy môn</button>`
+            : `<span class="hint-sm">Đã có buổi học, không thể hủy</span>`
       }
     </div>
   </div>`;
@@ -340,25 +347,25 @@ function renderEnroll(el, student) {
     <div class="section-title">Lớp đang mở để đăng ký</div>
     <p id="enroll-message" class="form-error" role="alert" hidden></p>
     <div id="open-class-wrap">
-      ${renderOpenList(d.openClasses, "")}
+      ${renderOpenList(d.openClasses, "", student.id)}
     </div>
   `;
 
   el.querySelector("#subject-filter").addEventListener("change", (e) => {
     const filter = e.target.value;
-    el.querySelector("#open-class-wrap").innerHTML = renderOpenList(d.openClasses, filter);
+    el.querySelector("#open-class-wrap").innerHTML = renderOpenList(d.openClasses, filter, student.id);
     bindOpenList(el, student);
   });
 
   bindOpenList(el, student);
 }
 
-function renderOpenList(classes, subject) {
+function renderOpenList(classes, subject, studentId) {
   const list = subject ? classes.filter((c) => c.subject === subject) : classes;
   if (!list.length) {
     return `<div class="empty panel">Không có lớp phù hợp. Hãy thử lọc môn khác.</div>`;
   }
-  return `<div class="class-grid">${list.map(openClassCard).join("")}</div>`;
+  return `<div class="class-grid">${list.map((c) => openClassCard(c, studentId)).join("")}</div>`;
 }
 
 function bindOpenList(el, student) {
@@ -380,10 +387,10 @@ function bindOpenList(el, student) {
     })
   );
 
-  el.querySelectorAll("[data-cancel]").forEach((btn) =>
+  el.querySelectorAll("[data-request-cancel]").forEach((btn) =>
     btn.addEventListener("click", () => {
       try {
-        cancelEnrollment(btn.dataset.cancel);
+        requestCancelClass(student.id, btn.dataset.requestCancel);
         renderEnroll(el, student);
       } catch (err) {
         flash(err.message);
@@ -392,7 +399,9 @@ function bindOpenList(el, student) {
   );
 }
 
-const openClassCard = (c) => `
+const openClassCard = (c, studentId) => {
+  const pending = getPendingRequest(studentId, c.id);
+  return `
   <div class="class-card ${c.isEnrolled ? "enrolled" : ""}">
     <div class="class-top">
       <span class="badge subject">${subjectLabel(c.subject)}</span>
@@ -405,11 +414,14 @@ const openClassCard = (c) => `
     </div>
     <div class="class-actions">
       ${
-        c.isEnrolled
-          ? `<button class="btn btn-sm btn-danger" data-cancel="${c.enrollmentId}">Hủy đăng ký</button>`
-          : c.enrolled >= c.maxSlot
-            ? `<button class="btn btn-sm" disabled>Đã đủ chỗ</button>`
-            : `<button class="btn btn-sm btn-primary" data-enroll="${c.id}">Đăng ký</button>`
+        pending
+          ? `<span class="hint-sm">Đã gửi yêu cầu hủy — chờ phụ huynh xác nhận</span>`
+          : c.isEnrolled
+            ? `<button class="btn btn-sm btn-danger" data-request-cancel="${c.id}">Gửi yêu cầu hủy môn</button>`
+            : c.enrolled >= c.maxSlot
+              ? `<button class="btn btn-sm" disabled>Đã đủ chỗ</button>`
+              : `<button class="btn btn-sm btn-primary" data-enroll="${c.id}">Đăng ký</button>`
       }
     </div>
   </div>`;
+};

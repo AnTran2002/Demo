@@ -56,6 +56,7 @@ export function renderLoginPage(container) {
             <button type="button" class="demo-chip" data-username="admin" data-password="admin123">admin / admin123</button>
             <button type="button" class="demo-chip" data-username="teacher" data-password="123456">teacher / 123456</button>
             <button type="button" class="demo-chip" data-username="student" data-password="123456">student / 123456</button>
+            <button type="button" class="demo-chip" data-username="parent" data-password="123456">parent / 123456</button>
           </div>
         </div>
       </div>

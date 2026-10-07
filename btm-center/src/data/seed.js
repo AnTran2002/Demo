@@ -14,6 +14,26 @@ function daysFromNow(n) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Ngày mang ngày trong tuần `dayOfWeek` (2=T2 … 8=CN, khớp WEEKDAYS),
+// lùi/tiến thêm `deltaWeeks` tuần; future=true thì luôn >= hôm nay,
+// future=false thì luôn < hôm nay. Dùng để gán buổi học demo đúng theo lịch
+// hằng tuần của lớp, nhờ đó phụ huynh xem lịch học thấy rõ giờ bắt đầu – kết thúc.
+function onWeekday(dayOfWeek, deltaWeeks = 0, future = false) {
+  const d = new Date();
+  const cur = d.getDay() === 0 ? 8 : d.getDay() + 1;
+  d.setDate(d.getDate() + (dayOfWeek - cur) + deltaWeeks * 7);
+  const p = (x) => String(x).padStart(2, "0");
+  const iso = () =>
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const today = daysFromNow(0);
+  if (future) {
+    while (iso() < today) d.setDate(d.getDate() + 7);
+  } else {
+    while (iso() >= today) d.setDate(d.getDate() - 7);
+  }
+  return iso();
+}
+
 const DEFAULT_USERS = [
   {
     id: "admin-01",
@@ -95,6 +115,20 @@ const DEFAULT_USERS = [
     dob: "2010-12-01",
     active: true,
   },
+  // Tài khoản demo phụ huynh, liên kết với học sinh demo "student" (s-01).
+  // Chỉ lưu studentId — mọi dữ liệu lớp/điểm/điểm danh đọc chung từ s-01.
+  {
+    id: "p-01",
+    username: "parent",
+    password: "123456",
+    role: "parent",
+    fullName: "Phụ huynh Phạm Thu Trang",
+    email: "phuhuynh.trang@gmail.com",
+    gender: "Nữ",
+    dob: "1985-03-08",
+    studentId: "s-01",
+    active: true,
+  },
 ];
 
 const DEFAULT_CLASSES = [
@@ -144,6 +178,19 @@ const DEFAULT_CLASSES = [
     schedule: [{ dayOfWeek: 5, start: "18:00", end: "19:30" }],
     status: "open",
   },
+  // Lớp cố ý KHÔNG có buổi học nào (xem DEFAULT_SESSIONS): theo quy tắc sẵn có,
+  // lớp đã có buổi học thì không thể hủy. Giữ một lớp trống như vậy để có thể demo
+  // trọn vẹn luồng "học sinh gửi yêu cầu hủy → phụ huynh đồng ý / từ chối".
+  {
+    id: "c-toan-9c",
+    className: "Toán 9C (chưa có buổi học)",
+    subject: "Toan",
+    grade: 9,
+    teacherId: "t-toan",
+    maxSlot: 20,
+    schedule: [{ dayOfWeek: 7, start: "14:00", end: "15:30" }],
+    status: "open",
+  },
 ];
 
 const DEFAULT_ENROLLMENTS = [
@@ -154,15 +201,21 @@ const DEFAULT_ENROLLMENTS = [
   { id: "e-5", classId: "c-van-9a", studentId: "s-03", status: "active", registeredAt: daysFromNow(-14) },
   { id: "e-6", classId: "c-anh-9a", studentId: "s-03", status: "active", registeredAt: daysFromNow(-12) },
   { id: "e-7", classId: "c-toan-9b", studentId: "s-03", status: "active", registeredAt: daysFromNow(-10) },
+  // Gán sẵn cho cả 3 học sinh để ai cũng demo được luồng hủy môn qua phụ huynh.
+  { id: "e-8", classId: "c-toan-9c", studentId: "s-01", status: "active", registeredAt: daysFromNow(-3) },
+  { id: "e-9", classId: "c-toan-9c", studentId: "s-02", status: "active", registeredAt: daysFromNow(-3) },
+  { id: "e-10", classId: "c-toan-9c", studentId: "s-03", status: "active", registeredAt: daysFromNow(-3) },
 ];
 
 const DEFAULT_SESSIONS = [
-  { id: "sess-1", classId: "c-toan-9a", date: daysFromNow(-4), title: "Hàm số bậc nhất", materials: [] },
-  { id: "sess-2", classId: "c-toan-9a", date: daysFromNow(3), title: "Phương trình bậc hai", materials: ["m-1"] },
-  { id: "sess-3", classId: "c-van-9a", date: daysFromNow(1), title: "Văn nghị luận xã hội", materials: [] },
-  { id: "sess-4", classId: "c-anh-9a", date: daysFromNow(2), title: "Grammar: Conditional sentences", materials: ["m-2"] },
-  { id: "sess-5", classId: "c-anh-9a", date: daysFromNow(-2), title: "Vocabulary: The environment", materials: [] },
-  { id: "sess-6", classId: "c-toan-9b", date: daysFromNow(4), title: "Ôn tập Hình học", materials: [] },
+  // Ngày gán theo đúng ngày trong tuần mà lớp đang học (xem onWeekday) để
+  // "Lịch học của con" hiển thị được giờ bắt đầu – kết thúc của buổi học.
+  { id: "sess-1", classId: "c-toan-9a", date: onWeekday(3, 0, false), title: "Hàm số bậc nhất", materials: [] },
+  { id: "sess-2", classId: "c-toan-9a", date: onWeekday(6, 0, true), title: "Phương trình bậc hai", materials: ["m-1"] },
+  { id: "sess-3", classId: "c-van-9a", date: onWeekday(2, 1, true), title: "Văn nghị luận xã hội", materials: [] },
+  { id: "sess-4", classId: "c-anh-9a", date: onWeekday(7, 0, true), title: "Grammar: Conditional sentences", materials: ["m-2"] },
+  { id: "sess-5", classId: "c-anh-9a", date: onWeekday(7, 0, false), title: "Vocabulary: The environment", materials: [] },
+  { id: "sess-6", classId: "c-toan-9b", date: onWeekday(5, 0, true), title: "Ôn tập Hình học", materials: [] },
 ];
 
 const DEFAULT_ATTENDANCE = [
@@ -220,6 +273,54 @@ function ensureEntity(entity, seedData) {
   if (DB.getAll(entity).length === 0) DB.saveAll(entity, seedData);
 }
 
+// Migration 1 lần: gỡ tài khoản đăng ký tay "Nguyễn Công Minh".
+// Tài khoản này được tạo thủ công qua form đăng ký nên chỉ tồn tại trong
+// LocalStorage của trình duyệt, không có trong seed — vì vậy phải dọn ở đây.
+// Hàm chạy mỗi lần mở app nhưng tự thoát ngay nếu tài khoản đã bị gỡ.
+const RETIRED_USERNAMES = ["Nguyễn Công Minh"];
+
+function purgeRetiredUsers() {
+  const users = DB.getAll("users");
+  const retired = users.filter((u) => RETIRED_USERNAMES.includes(u.username));
+  if (!retired.length) return;
+
+  const ids = new Set(retired.map((u) => u.id));
+  DB.saveAll("users", users.filter((u) => !ids.has(u.id)));
+
+  // Dọn các bản ghi tham chiếu tới tài khoản bị gỡ (học sinh/giáo viên đã xoá).
+  ["enrollments", "attendance", "grades", "comments", "cancel_requests"].forEach((entity) => {
+    const rows = DB.getAll(entity);
+    const kept = rows.filter((r) => !ids.has(r.studentId) && !ids.has(r.teacherId));
+    if (kept.length !== rows.length) DB.saveAll(entity, kept);
+  });
+}
+
+// Dọn mọi liên kết trỏ tới tài khoản không còn tồn tại. Hàm này KHÔNG phụ thuộc
+// danh sách tài khoản cần gỡ nên tự đúng sau mọi lần xoá, kể cả khi dữ liệu được
+// tạo ra sau đó (nếu kiểm tra nằm chung trong purgeRetiredUsers thì sẽ bị bỏ sót
+// vì hàm đó return sớm khi tài khoản đã bị gỡ từ lần trước).
+function cleanDanglingLinks() {
+  const ids = new Set(DB.getAll("users").map((u) => u.id));
+
+  // Lớp mà giáo viên đã bị xoá: bỏ liên kết nhưng GIỮ NGUYÊN lớp, buổi học, điểm.
+  const classes = DB.getAll("classes");
+  if (classes.some((c) => c.teacherId && !ids.has(c.teacherId))) {
+    DB.saveAll(
+      "classes",
+      classes.map((c) => (c.teacherId && !ids.has(c.teacherId) ? { ...c, teacherId: null } : c))
+    );
+  }
+
+  // Phụ huynh trỏ tới học sinh đã bị xoá: bỏ liên kết cho hợp lệ.
+  const users = DB.getAll("users");
+  if (users.some((u) => u.studentId && !ids.has(u.studentId))) {
+    DB.saveAll(
+      "users",
+      users.map((u) => (u.studentId && !ids.has(u.studentId) ? { ...u, studentId: null } : u))
+    );
+  }
+}
+
 export function seedDatabase() {
   const users = DB.getAll("users");
   const missingDefaults = DEFAULT_USERS.filter(
@@ -267,6 +368,9 @@ export function seedDatabase() {
       )
     );
   }
+
+  purgeRetiredUsers();
+  cleanDanglingLinks();
 
   // Nếu tài khoản default bị thiếu (dữ liệu cũ) → khôi phục luôn dữ liệu demo
   // cho các entity còn trống để hệ thống demo có thể dùng ngay.

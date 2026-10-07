@@ -24,6 +24,7 @@ import { attachMaterial, listMaterialsBySession } from "../../modules/materials/
 import { addGrade, listGradesByClass } from "../../modules/grades/grades.service.js";
 import { addComment, listCommentsByClass } from "../../modules/comments/comments.service.js";
 import { DB } from "../../core/db.js";
+import { escapeHtml } from "../../core/html.js";
 import {
   WEEKDAYS,
   subjectLabel,
@@ -633,6 +634,7 @@ function renderAttendance(el, teacher, classId, sessionId, goTab) {
   const students = listStudentsOfClass(classId);
   const existing = listAttendanceBySession(sessionId);
   const statusOf = (sid) => existing.find((a) => a.studentId === sid)?.status || "present";
+  const noteOf = (sid) => existing.find((a) => a.studentId === sid)?.note || "";
 
   const summary = sessionAttendanceInfo(sessionId);
 
@@ -652,7 +654,7 @@ function renderAttendance(el, teacher, classId, sessionId, goTab) {
       ${
         students.length
           ? `<div class="table-wrap"><table>
-              <thead><tr><th>#</th><th>Học sinh</th><th>Trạng thái</th></tr></thead>
+              <thead><tr><th>#</th><th>Học sinh</th><th>Trạng thái</th><th>Lý do (gửi cho phụ huynh)</th></tr></thead>
               <tbody>${students
                 .map(
                   (s, i) => `
@@ -668,10 +670,14 @@ function renderAttendance(el, teacher, classId, sessionId, goTab) {
                             .join("")}
                         </select>
                       </td>
+                      <td>
+                        <input class="att-note" data-student="${s.id}" value="${escapeHtml(noteOf(s.id))}" placeholder="VD: ốm, không phép..." />
+                      </td>
                     </tr>`
                 )
                 .join("")}</tbody>
             </table></div>
+            <p class="form-hint">Lý do sẽ được hiển thị trong trường thông báo của phụ huynh (màu đỏ khi con vắng mặt).</p>
             <div class="panel-foot">
               <button id="att-save" class="btn btn-primary">Lưu điểm danh</button>
               <button id="att-reset" class="btn btn-danger">Xoá điểm danh buổi này</button>
@@ -687,7 +693,9 @@ function renderAttendance(el, teacher, classId, sessionId, goTab) {
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
       el.querySelectorAll(".att-select").forEach((sel) => {
-        markAttendance(sessionId, sel.dataset.student, sel.value);
+        const note =
+          el.querySelector(`.att-note[data-student="${sel.dataset.student}"]`)?.value.trim() || "";
+        markAttendance(sessionId, sel.dataset.student, sel.value, note);
       });
       renderAttendance(el, teacher, classId, sessionId, goTab);
     });

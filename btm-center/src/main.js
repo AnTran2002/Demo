@@ -9,6 +9,7 @@ import { renderRegisterPage } from "./pages/auth/register.page.js";
 import { renderAdminDashboard } from "./pages/admin/admin-dashboard.page.js";
 import { renderTeacherDashboard } from "./pages/teacher/teacher-dashboard.page.js";
 import { renderStudentDashboard } from "./pages/student/student-dashboard.page.js";
+import { renderParentsDashboard } from "./pages/parents/parents-dashboard.js";
 
 seedDatabase();
 
@@ -28,6 +29,11 @@ Router.registerRoute("/teacher", (container) => {
 Router.registerRoute("/student", (container) => {
   if (!Session.requireRole("student")) return Router.navigate("/login");
   renderStudentDashboard(container);
+});
+
+Router.registerRoute("/parent", (container) => {
+  if (!Session.requireRole("parent")) return Router.navigate("/login");
+  renderParentsDashboard(container);
 });
 
 Router.registerRoute("/not-found", (container) => {

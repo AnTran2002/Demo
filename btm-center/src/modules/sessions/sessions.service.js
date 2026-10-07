@@ -9,14 +9,14 @@ export function listSessionsByClass(classId) {
   return DB.getAll("sessions").filter((s) => s.classId === classId);
 }
 
-export function markAttendance(sessionId, studentId, status) {
+export function markAttendance(sessionId, studentId, status, note = "") {
   const existing = DB.getAll("attendance").find(
     (a) => a.sessionId === sessionId && a.studentId === studentId
   );
   if (existing) {
-    return DB.update("attendance", existing.id, { status });
+    return DB.update("attendance", existing.id, { status, note });
   }
-  return DB.insert("attendance", { sessionId, studentId, status });
+  return DB.insert("attendance", { sessionId, studentId, status, note });
 }
 
 export function listAttendanceBySession(sessionId) {
@@ -36,4 +36,8 @@ export function listUpcomingSessionsByClass(classId, fromDate) {
 
 export function hasAttendance(sessionId) {
   return DB.getAll("attendance").some((a) => a.sessionId === sessionId);
+}
+
+export function listAttendanceOfStudent(studentId) {
+  return DB.getAll("attendance").filter((a) => a.studentId === studentId);
 }

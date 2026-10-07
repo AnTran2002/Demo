@@ -2,6 +2,7 @@
 import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
 import { getAdminOverview, getAdminAccountClasses } from "../../modules/dashboard/dashboard.service.js";
 import { toggleActive } from "../../modules/users/users.service.js";
+import { getLinkedStudent } from "../../modules/parents/parents.service.js";
 import { subjectLabel } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
@@ -124,6 +125,7 @@ function renderAccounts(el, filterRole = "") {
             <option value="admin">${ROLE_LABELS.admin}</option>
             <option value="teacher">${ROLE_LABELS.teacher}</option>
             <option value="student">${ROLE_LABELS.student}</option>
+            <option value="parent">${ROLE_LABELS.parent}</option>
           </select>
           <span class="count-chip">${users.length} tài khoản</span>
         </div>
@@ -186,12 +188,32 @@ function renderAccounts(el, filterRole = "") {
 }
 
 function accountClassesBlock(user) {
+  if (user.role === "parent") {
+    const student = getLinkedStudent(user.id);
+    return student
+      ? `<div class="acct-classes">
+          <div class="acct-class">
+            <span><strong>${student.fullName}</strong></span>
+            <span class="badge student">Mã: ${student.id}</span>
+            <span class="muted">@${student.username}</span>
+          </div>
+        </div>`
+      : `<span class="muted">Tài khoản phụ huynh chưa liên kết học sinh.</span>`;
+  }
+
   const classes = getAdminAccountClasses(user);
   if (!classes.length) {
-    return `<span class="muted">Tài khoản chưa tham gia lớp nào.</span>`;
+    return user.role === "student"
+      ? `<span class="muted">Tài khoản chưa tham gia lớp nào. Mã học sinh: <strong>${user.id}</strong></span>`
+      : `<span class="muted">Tài khoản chưa tham gia lớp nào.</span>`;
   }
   return `
     <div class="acct-classes">
+      ${
+        user.role === "student"
+          ? `<div class="acct-class"><span class="muted">Mã học sinh: <strong>${user.id}</strong></span></div>`
+          : ""
+      }
       ${classes
         .map(
           (c) => `

@@ -3,6 +3,7 @@
 
 import { DB } from "../../core/db.js";
 import { hashPassword } from "../../core/hash.js";
+import { assertStudentLinkable } from "../parents/parents.service.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,16}$/;
@@ -56,6 +57,23 @@ export function registerStudent({ username, password, email, fullName, gender, d
     gender,
     dob,
     role: "student",
+    active: true,
+  });
+}
+
+// Đăng ký phụ huynh: bắt buộc liên kết hợp lệ với 1 tài khoản học sinh qua mã học sinh.
+export function registerParent({ username, password, email, fullName, gender, dob, studentId }) {
+  validateRegistration({ username, password, email, fullName, gender, dob });
+  const student = assertStudentLinkable(studentId);
+  return DB.insert("users", {
+    username,
+    password: hashPassword(password),
+    email,
+    fullName,
+    gender,
+    dob,
+    role: "parent",
+    studentId: student.id,
     active: true,
   });
 }
