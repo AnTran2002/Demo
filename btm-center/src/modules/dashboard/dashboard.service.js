@@ -112,7 +112,9 @@ export function getTeacherOverview(teacherId) {
 }
 
 export function getTeacherWeekSchedule(teacherId) {
-  return getTeacherSchedule(teacherId).map(enrichClass);
+  return getTeacherSchedule(teacherId)
+    .filter((c) => c.status === "open")
+    .map(enrichClass);
 }
 
 export function getStudentOverview(studentId) {
@@ -133,7 +135,7 @@ export function getStudentOverview(studentId) {
         ? { ...enrichClass(cls), enrollmentId: e.id, enrolled: enrolledCount(cls.id) }
         : null;
     })
-    .filter(Boolean);
+    .filter((c) => c && c.status === "open");
 
   const myEnrollmentId = (classId) =>
     enrollments.find((e) => e.classId === classId)?.id;

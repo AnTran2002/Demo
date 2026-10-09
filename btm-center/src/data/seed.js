@@ -269,6 +269,41 @@ const DEFAULT_COMMENTS = [
   },
 ];
 
+const DEMO_PENDING_CLASS = {
+  id: "c-demo-cho-duyet",
+  className: "Toán 9D (chờ phê duyệt)",
+  subject: "Toan",
+  grade: 9,
+  teacherId: "t-toan",
+  maxSlot: 20,
+  schedule: [
+    { dayOfWeek: 4, start: "17:00", end: "18:30" },
+    { dayOfWeek: 7, start: "08:00", end: "09:30" },
+  ],
+  status: "pending",
+};
+
+const DEFAULT_CLASS_REQUESTS = [
+  {
+    id: "cr-1",
+    type: "register",
+    classId: "c-demo-cho-duyet",
+    teacherId: "t-toan",
+    status: "pending",
+    createdAt: daysFromNow(-1),
+  },
+  {
+    id: "cr-2",
+    type: "reschedule",
+    classId: "c-van-9a",
+    teacherId: "t-van",
+    oldSchedule: [{ dayOfWeek: 2, start: "18:00", end: "19:30" }],
+    newSchedule: [{ dayOfWeek: 5, start: "18:00", end: "19:30" }],
+    status: "pending",
+    createdAt: daysFromNow(0),
+  },
+];
+
 function ensureEntity(entity, seedData) {
   if (DB.getAll(entity).length === 0) DB.saveAll(entity, seedData);
 }
@@ -382,5 +417,15 @@ export function seedDatabase() {
     ensureEntity("materials", DEFAULT_MATERIALS);
     ensureEntity("grades", DEFAULT_GRADES);
     ensureEntity("comments", DEFAULT_COMMENTS);
+  }
+
+  if (!DB.getAll("classes").some((c) => c.id === DEMO_PENDING_CLASS.id)) {
+    DB.saveAll("classes", [...DB.getAll("classes"), DEMO_PENDING_CLASS]);
+  }
+
+  if (DB.getAll("class_requests").length === 0) {
+    const classIds = new Set(DB.getAll("classes").map((c) => c.id));
+    const demoRequests = DEFAULT_CLASS_REQUESTS.filter((r) => classIds.has(r.classId));
+    if (demoRequests.length) DB.saveAll("class_requests", demoRequests);
   }
 }

@@ -135,6 +135,7 @@ export function renderParentsDashboard(container) {
 // Lịch dạng calendar theo tháng: mỗi ngày có buổi học là một ô bấm được,
 // bấm vào để xem chi tiết: giáo viên giảng dạy + giờ bắt đầu / kết thúc buổi học.
 function renderSchedule(el, ctx) {
+  ensureModalStyles();
   const { student, d } = ctx;
   const now = new Date();
   const today = todayStr();
@@ -179,7 +180,10 @@ function renderSchedule(el, ctx) {
         .slice(0, 2)
         .map((it) => {
           const slot = slotOfClass(it.cls, iso);
-          return `<span class="cal-chip">${subjectLabel(it.cls.subject)}${slot ? ` ${slot.start}` : ""}</span>`;
+          const timeText = slot ? ` ${slot.start}` : "";
+          return `<button type="button" class="cal-chip-btn" data-session-id="${it.session.id}" data-day="${iso}" title="Xem chi tiết: ${escapeHtml(it.cls.className)} · ${subjectLabel(it.cls.subject)}${slot ? ` (${slot.start} – ${slot.end})` : ""}">
+            ${subjectLabel(it.cls.subject)}${timeText}
+          </button>`;
         })
         .join("");
       const more =
@@ -187,30 +191,19 @@ function renderSchedule(el, ctx) {
       const inner = `<span class="cal-num">${date.getDate()}</span>${chips}${more}`;
 
       return items.length
-        ? `<button type="button" class="${cls.join(" ")}" data-day="${iso}" title="${formatDate(iso)}">${inner}</button>`
+        ? `<div class="${cls.join(" ")}" data-day="${iso}" title="Ngày ${formatDate(iso)}: ${items.length} buổi học (bấm để xem chi tiết)">${inner}</div>`
         : `<div class="${cls.join(" ")}">${inner}</div>`;
     })
     .join("");
-
-  const dayItems = cal.selected ? byDate.get(cal.selected) || [] : [];
-  const detail = !cal.selected
-    ? `<div class="panel"><div class="empty">Bấm vào một ngày có lịch học trên lịch để xem chi tiết buổi học.</div></div>`
-    : dayItems.length
-      ? `<div class="panel cal-detail">
-          <div class="panel-head">
-            <h2 class="panel-title">Chi tiết buổi học — ${weekdayLabel(parseIso(cal.selected))}, ${formatDate(cal.selected)}</h2>
-            <span class="count-chip">${dayItems.length} buổi</span>
-          </div>
-          ${dayItems.map(({ cls, session: s }) => daySessionRow(cls, s, cal.selected, student.id)).join("")}
-        </div>`
-      : `<div class="panel cal-detail"><div class="empty">Ngày ${formatDate(cal.selected)} không có buổi học nào.</div></div>`;
-
+  const detail = cal.selected 
+  ? ""
+  : "";
   el.innerHTML = `
     <div class="panel cal-panel">
       <div class="cal-head">
         <div>
           <h2 class="cal-title">${monthLabel}</h2>
-          <p class="cal-hint">Bấm vào ngày có lịch học để xem chi tiết: giáo viên giảng dạy và giờ bắt đầu – kết thúc.</p>
+          <p class="cal-hint">Bấm vào bất kỳ buổi học nào trên lịch để mở popup xem chi tiết: môn học, giáo viên, thời gian học và thời gian bắt đầu – kết thúc.</p>
         </div>
         <div class="cal-nav">
           <button type="button" class="icon-btn" data-cal="prev" title="Tháng trước">${ICONS.back}</button>
@@ -251,12 +244,494 @@ function renderSchedule(el, ctx) {
     renderSchedule(el, ctx);
   });
 
-  el.querySelectorAll("[data-day]").forEach((btn) =>
+  // Bấm trực tiếp vào 1 chip buổi học trên calendar -> mở popup chi tiết buổi học đó
+  el.querySelectorAll(".cal-chip-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const iso = btn.dataset.day;
+      const sessId = btn.dataset.sessionId;
+      const list = byDate.get(iso) || [];
+      const item = list.find((it) => it.session.id === sessId);
+      if (item) {
+        cal.selected = iso;
+        el.querySelectorAll(".cal-cell").forEach((c) => c.classList.remove("cal-selected"));
+        el.querySelector(`.cal-cell[data-day="${iso}"]`)?.classList.add("cal-selected");
+        showSessionPopup(item.cls, item.session, iso, student.id);
+      }
+    });
+  });
+
+  // Bấm vào ô ngày trên calendar
+  el.querySelectorAll(".cal-cell[data-day]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      cal.selected = btn.dataset.day;
+      const iso = btn.dataset.day;
+      cal.selected = iso;
+      const list = byDate.get(iso) || [];
+      if (list.length === 1) {
+        showSessionPopup(list[0].cls, list[0].session, iso, student.id);
+      }
       renderSchedule(el, ctx);
     })
   );
+
+  // Bấm vào hàng buổi học trong bảng chi tiết ngày hoặc nút Chi tiết
+  el.querySelectorAll("[data-session-item-id]").forEach((itemEl) => {
+    itemEl.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return; // Không can thiệp liên kết tải tài liệu
+      const sessId = itemEl.dataset.sessionItemId;
+      const iso = itemEl.dataset.day;
+      const list = byDate.get(iso) || [];
+      const item = list.find((it) => it.session.id === sessId);
+      if (item) {
+        showSessionPopup(item.cls, item.session, iso, student.id);
+      }
+    });
+  });
+}
+
+// Popup hiển thị chi tiết buổi học khi ấn vào một buổi học trên calendar
+function showSessionPopup(cls, session, iso, studentId) {
+  ensureModalStyles();
+
+  const oldModal = document.getElementById("session-detail-modal");
+  if (oldModal) oldModal.remove();
+
+  const slot = slotOfClass(cls, iso);
+  const teacher = listUsers("teacher").find((u) => u.id === cls.teacherId);
+  const teacherFullName = teacher?.fullName || teacherName(cls.teacherId);
+  const dow = weekdayLabel(parseIso(iso));
+  const mats = listMaterialsBySession(session.id);
+  const isUpcoming = iso >= todayStr();
+
+  const modalHtml = `
+    <div id="session-detail-modal" class="session-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-modal-heading">
+      <div class="session-modal-box">
+        <div class="session-modal-head">
+          <div class="session-modal-title-wrap">
+            <span class="badge subject">${subjectLabel(cls.subject)}</span>
+            <span class="badge ${isUpcoming ? "open" : "closed"}">${isUpcoming ? "Sắp tới" : "Đã diễn ra"}</span>
+            <h3 class="session-modal-heading" id="session-modal-heading">Chi tiết buổi học</h3>
+          </div>
+          <button type="button" class="session-modal-close-btn" id="session-modal-close" aria-label="Đóng" title="Đóng">&times;</button>
+        </div>
+
+        <div class="session-modal-body">
+          <div class="session-modal-hero">
+            <div class="session-hero-title">${escapeHtml(cls.className)}</div>
+            ${session.title ? `<div class="session-hero-subtitle">${escapeHtml(session.title)}</div>` : ""}
+          </div>
+
+          <div class="session-info-grid">
+            <!-- 1. Môn học -->
+            <div class="session-info-card">
+              <div class="session-info-icon">${ICONS.classes}</div>
+              <div class="session-info-content">
+                <span class="session-info-label">Môn học</span>
+                <strong class="session-info-val">${subjectLabel(cls.subject)}</strong>
+                <span class="session-info-sub">Lớp: ${cls.className}</span>
+              </div>
+            </div>
+
+            <!-- 2. Giáo viên giảng dạy -->
+            <div class="session-info-card">
+              <div class="session-info-icon">${ICONS.users}</div>
+              <div class="session-info-content">
+                <span class="session-info-label">Giáo viên giảng dạy</span>
+                <strong class="session-info-val">${teacherFullName}</strong>
+                ${teacher?.email ? `<span class="session-info-sub">${escapeHtml(teacher.email)}</span>` : ""}
+              </div>
+            </div>
+
+            <!-- 3. Thời gian học -->
+            <div class="session-info-card">
+              <div class="session-info-icon">${ICONS.calendar}</div>
+              <div class="session-info-content">
+                <span class="session-info-label">Thời gian học</span>
+                <strong class="session-info-val">${dow}, ngày ${formatDate(iso)}</strong>
+                <span class="session-info-sub">Ngày diễn ra buổi học</span>
+              </div>
+            </div>
+
+            <!-- 4. Thời gian bắt đầu và kết thúc -->
+            <div class="session-info-card session-info-highlight">
+              <div class="session-info-icon">${ICONS.clock}</div>
+              <div class="session-info-content">
+                <span class="session-info-label">Thời gian bắt đầu & kết thúc</span>
+                ${
+                  slot
+                    ? `
+                  <div class="session-time-row">
+                    <div class="session-time-pill">
+                      <span class="time-pill-label">Bắt đầu</span>
+                      <strong class="time-pill-val">${slot.start}</strong>
+                    </div>
+                    <span class="session-time-sep">➔</span>
+                    <div class="session-time-pill">
+                      <span class="time-pill-label">Kết thúc</span>
+                      <strong class="time-pill-val">${slot.end}</strong>
+                    </div>
+                  </div>
+                  <div class="session-time-text">Khung giờ học: <b>${slot.start} – ${slot.end}</b></div>
+                `
+                    : `<strong class="session-info-val muted">Chưa cập nhật khung giờ</strong>`
+                }
+              </div>
+            </div>
+
+            <!-- Điểm danh học sinh -->
+            <div class="session-info-card">
+              <div class="session-info-icon">${ICONS.school}</div>
+              <div class="session-info-content">
+                <span class="session-info-label">Điểm danh của con</span>
+                <div>${attBadge(session.id, studentId)}</div>
+              </div>
+            </div>
+          </div>
+
+          ${
+            mats.length
+              ? `
+            <div class="session-modal-section">
+              <div class="session-section-title">${ICONS.paperclip} Tài liệu buổi học (${mats.length})</div>
+              <div class="day-mats">
+                ${mats
+                  .map(
+                    (m) =>
+                      `<span class="mat-chip">${ICONS.paperclip} ${escapeHtml(m.fileName)} ${materialLink(m)}</span>`
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+              : ""
+          }
+        </div>
+
+        <div class="session-modal-foot">
+          <button type="button" class="btn btn-primary" id="session-modal-ok">Đóng</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+  const modalEl = document.getElementById("session-detail-modal");
+  const close = () => {
+    if (modalEl) {
+      modalEl.classList.add("closing");
+      setTimeout(() => modalEl.remove(), 180);
+      document.removeEventListener("keydown", onKeyDown);
+    }
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKeyDown);
+
+  modalEl.querySelector("#session-modal-close")?.addEventListener("click", close);
+  modalEl.querySelector("#session-modal-ok")?.addEventListener("click", close);
+  modalEl.addEventListener("click", (e) => {
+    if (e.target === modalEl) close();
+  });
+}
+
+function ensureModalStyles() {
+  if (document.getElementById("parents-dashboard-modal-styles")) return;
+  const style = document.createElement("style");
+  style.id = "parents-dashboard-modal-styles";
+  style.textContent = `
+    .session-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(26, 16, 51, 0.55);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      animation: sessionModalFadeIn 0.2s ease-out;
+    }
+    .session-modal-overlay.closing {
+      animation: sessionModalFadeOut 0.18s ease-in forwards;
+    }
+    .session-modal-box {
+      background: #ffffff;
+      border-radius: 20px;
+      width: min(540px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 60px -12px rgba(43, 10, 94, 0.35);
+      border: 1px solid var(--line, #e6e1f5);
+      display: flex;
+      flex-direction: column;
+      animation: sessionModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .session-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line, #e6e1f5);
+      background: #ffffff;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .session-modal-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .session-modal-heading {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--brand-ink, #2b0a5e);
+    }
+    .session-modal-close-btn {
+      background: none;
+      border: none;
+      font-size: 26px;
+      line-height: 1;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--muted, #6d688a);
+      transition: background 0.15s, color 0.15s;
+    }
+    .session-modal-close-btn:hover {
+      background: var(--field, #f5f3fc);
+      color: var(--brand-ink, #2b0a5e);
+    }
+    .session-modal-body {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .session-modal-hero {
+      background: linear-gradient(135deg, #f7f3ff 0%, #ede6ff 100%);
+      border: 1px solid #dcc7ff;
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .session-hero-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--brand-ink, #2b0a5e);
+    }
+    .session-hero-subtitle {
+      font-size: 13px;
+      color: var(--brand-dark, #5e1bd6);
+      margin-top: 4px;
+      font-weight: 600;
+    }
+    .session-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .session-info-card {
+      background: var(--field, #f5f3fc);
+      border: 1px solid var(--line, #e6e1f5);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .session-info-card.full-width {
+      grid-column: 1 / -1;
+    }
+    .session-info-card.session-info-highlight {
+      grid-column: 1 / -1;
+      background: #f6f0ff;
+      border: 1.5px solid #d9c2ff;
+    }
+    .session-info-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--brand, #863bff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      box-shadow: 0 2px 6px rgba(134, 59, 255, 0.12);
+    }
+    .session-info-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+    .session-info-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    .session-info-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted, #6d688a);
+    }
+    .session-info-val {
+      font-size: 14px;
+      color: var(--brand-ink, #2b0a5e);
+      word-break: break-word;
+    }
+    .session-info-sub {
+      font-size: 12px;
+      color: var(--muted, #6d688a);
+    }
+    .session-time-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .session-time-pill {
+      background: #ffffff;
+      border: 1px solid #dcc7ff;
+      border-radius: 8px;
+      padding: 6px 14px;
+      text-align: center;
+      flex: 1;
+    }
+    .time-pill-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted, #6d688a);
+      text-transform: uppercase;
+    }
+    .time-pill-val {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--brand-dark, #5e1bd6);
+    }
+    .session-time-sep {
+      color: var(--brand, #863bff);
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .session-time-text {
+      font-size: 12px;
+      color: var(--muted, #6d688a);
+      margin-top: 6px;
+    }
+    .session-modal-section {
+      border-top: 1px dashed var(--line, #e6e1f5);
+      padding-top: 14px;
+    }
+    .session-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted, #6d688a);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .session-section-title svg {
+      width: 14px;
+      height: 14px;
+    }
+    .session-modal-foot {
+      padding: 14px 22px;
+      border-top: 1px solid var(--line, #e6e1f5);
+      background: #faf9fd;
+      display: flex;
+      justify-content: flex-end;
+      border-bottom-left-radius: 20px;
+      border-bottom-right-radius: 20px;
+    }
+    .cal-chip-btn {
+      display: block;
+      width: 100%;
+      padding: 3px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      color: var(--brand-dark, #5e1bd6);
+      background: #f2ecff;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cal-chip-btn:hover {
+      background: #e6d8ff;
+      border-color: #c9b1ff;
+      color: var(--brand-ink, #2b0a5e);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 5px rgba(94, 27, 214, 0.15);
+    }
+    .cal-cell.cal-has {
+      cursor: pointer;
+    }
+    .cal-cell.cal-has:hover {
+      background: #fcfaff;
+      border-color: #baa0f7;
+    }
+    .day-session-clickable {
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .day-session-clickable:hover {
+      background: #faf8ff;
+    }
+    .session-btn-detail {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--brand, #863bff);
+      background: #ffffff;
+      color: var(--brand, #863bff);
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.15s ease;
+    }
+    .session-btn-detail:hover {
+      background: var(--brand, #863bff);
+      color: #ffffff;
+    }
+    @keyframes sessionModalFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes sessionModalFadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    @keyframes sessionModalSlideUp {
+      from { opacity: 0; transform: translateY(18px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @media (max-width: 520px) {
+      .session-info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 // Chi tiết một buổi học trong ngày: tên giáo viên + giờ bắt đầu/kết thúc.
@@ -264,7 +739,7 @@ function daySessionRow(cls, session, iso, studentId) {
   const slot = slotOfClass(cls, iso);
   const mats = listMaterialsBySession(session.id);
   return `
-    <div class="row-item">
+    <div class="row-item day-session-clickable" data-session-item-id="${session.id}" data-day="${iso}" title="Bấm để xem popup chi tiết buổi học">
       <div>
         <strong class="row-title">
           <span class="badge subject">${subjectLabel(cls.subject)}</span>
@@ -286,6 +761,7 @@ function daySessionRow(cls, session, iso, studentId) {
       <span class="row-end day-end">
         ${attBadge(session.id, studentId)}
         <span class="muted">${iso >= todayStr() ? "Sắp tới" : "Đã diễn ra"}</span>
+        <button type="button" class="session-btn-detail" data-session-item-id="${session.id}" data-day="${iso}">Chi tiết</button>
       </span>
     </div>`;
 }
