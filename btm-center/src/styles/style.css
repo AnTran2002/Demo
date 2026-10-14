@@ -1,4 +1,4 @@
-/* styles/style.css — style dùng chung toàn hệ thống */
+﻿/* styles/style.css — style dùng chung toàn hệ thống */
 
 :root {
   --brand: #863bff;
@@ -14,8 +14,12 @@
 
 * { box-sizing: border-box; }
 
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 body {
-  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Be Vietnam Pro", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   margin: 0;
   background: #f5f6fb;
   color: var(--text);
@@ -647,6 +651,7 @@ td.actions { text-align: right; }
   border: none;
   border-radius: 10px;
   cursor: pointer;
+  font-family: inherit;
   transition: transform 0.15s, box-shadow 0.15s, background 0.15s, color 0.15s;
 }
 
@@ -2317,8 +2322,9 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   border: 1px solid rgba(134, 59, 255, 0.12);
   border-radius: 14px;
   box-shadow: 0 4px 18px -4px rgba(43, 10, 94, 0.08);
-  overflow-x: auto;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  white-space: normal;
 }
 
 .jump-label {
@@ -2337,6 +2343,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
@@ -2829,6 +2836,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
+  font-family: inherit;
   transition: all 0.2s;
 }
 
@@ -3073,3 +3081,86 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   box-shadow: 0 4px 12px -2px rgba(43, 10, 94, 0.06);
 }
 
+
+/* ================= UI/UX POLISH ================= */
+#app { max-width: min(96vw, 1600px); padding: 24px 20px; }
+.app-shell { min-height: 100vh; }
+.main { min-width: 0; }
+.content { min-width: 0; overflow-x: hidden; }
+.panel, .overview-panel { overflow: hidden; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; table-layout: auto; }
+th, td { vertical-align: top; padding: 10px 12px; line-height: 1.35; white-space: normal; word-break: break-word; }
+td.actions, .actions { white-space: nowrap; }
+.badge { line-height: 1.2; }
+.btn, button { white-space: nowrap; }
+.modal { width: min(92vw, 640px); }
+.modal-lg { width: min(92vw, 980px); }
+.modal-xl { width: min(94vw, 1180px); }
+.welcome-banner { flex-wrap: wrap; }
+.input-group, .modal-form input, .modal-form select, .modal-form textarea { width: 100%; }
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 1320px) {
+  .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
+.overview-dashboard { display: flex; flex-direction: column; gap: 22px; }
+
+/* Dong bo nut thao tac trong bang */
+.actions {
+  display: grid !important;
+  gap: 8px;
+  align-items: stretch;
+  justify-items: stretch;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+.actions:has(> .btn:nth-child(4)) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.actions:has(> .btn:nth-child(2)):not(:has(> .btn:nth-child(3))) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.actions .btn,
+.actions button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px !important;
+  text-align: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Tinh gon jump bar (xem nhanh muc) */
+.overview-jump-bar {
+  padding: 8px 10px !important;
+  gap: 6px !important;
+}
+.jump-label {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  color: var(--muted) !important;
+}
+.jump-label svg { width: 12px !important; height: 12px !important; }
+.jump-pill {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 4px 10px !important;
+  border-radius: 8px !important;
+}
+.jump-badge {
+  font-size: 11px !important;
+  padding: 0 5px !important;
+  font-weight: 600 !important;
+}

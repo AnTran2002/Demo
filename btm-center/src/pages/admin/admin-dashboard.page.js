@@ -233,18 +233,18 @@ function renderAdminOverviewPage(el) {
       <div class="overview-jump-bar" id="overview-jump-bar">
         <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
         <a class="jump-pill active" href="#overview-kpis">
-          <span>📊 Chỉ số KPI</span>
+          <span>Chỉ số KPI</span>
         </a>
         <a class="jump-pill" href="#overview-accounts">
-          <span>👥 Quản lý tài khoản</span>
+          <span>Quản lý tài khoản</span>
           <span class="jump-badge">${allUsers.length}</span>
         </a>
         <a class="jump-pill" href="#overview-classes">
-          <span>📚 Quản lý lớp học</span>
+          <span>Quản lý lớp học</span>
           <span class="jump-badge">${allClasses.length}</span>
         </a>
         <a class="jump-pill" href="#overview-notifications">
-          <span>🔔 Thông báo & Phê duyệt</span>
+          <span>Thông báo & Phê duyệt</span>
           ${
             pendingRequests.length
               ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingRequests.length}</span>`
@@ -252,10 +252,10 @@ function renderAdminOverviewPage(el) {
           }
         </a>
         <a class="jump-pill" href="#overview-analytics">
-          <span>📈 Tình trạng trung tâm</span>
+          <span>Tình trạng trung tâm</span>
         </a>
         <a class="jump-pill" href="#overview-quickactions">
-          <span>⚡ Tiện ích & Nhật ký</span>
+          <span>Tiện ích & Nhật ký</span>
         </a>
       </div>
 

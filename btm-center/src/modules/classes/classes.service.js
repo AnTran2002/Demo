@@ -60,6 +60,21 @@ export function setClassStatus(classId, status) {
   return DB.update("classes", classId, { status });
 }
 
+// Kiểm tra lớp học có đang mở để thao tác hay không
+export function isClassOpen(classId) {
+  const cls = DB.findById("classes", classId);
+  return !!cls && cls.status === "open";
+}
+
+// Ném lỗi nếu cố thao tác trên lớp đã đóng/chưa duyệt
+export function assertClassOpen(classId) {
+  const cls = DB.findById("classes", classId);
+  if (!cls) throw new Error("Lớp không tồn tại");
+  if (cls.status === "closed") throw new Error("Lớp đã đóng");
+  if (cls.status !== "open") throw new Error("Lớp chưa được Admin duyệt");
+  return cls;
+}
+
 export function updateClassInfo(classId, patch) {
   return DB.update("classes", classId, patch);
 }

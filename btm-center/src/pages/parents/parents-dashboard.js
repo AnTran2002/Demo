@@ -221,21 +221,21 @@ function renderParentOverviewPage(el, parent, student) {
       <div class="overview-jump-bar" id="overview-jump-bar">
         <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
         <a class="jump-pill active" href="#overview-kpis">
-          <span>📊 Chỉ số của con</span>
+          <span>Chỉ số của con</span>
         </a>
         <a class="jump-pill" href="#overview-schedule">
-          <span>📅 Lịch học tuần này</span>
+          <span>Lịch học tuần này</span>
           <span class="jump-badge">${myClasses.length} môn</span>
         </a>
         <a class="jump-pill" href="#overview-grades">
-          <span>📝 Bảng điểm & Lời phê</span>
+          <span>Bảng điểm & Lời phê</span>
         </a>
         <a class="jump-pill" href="#overview-attendance">
-          <span>📋 Theo dõi Chuyên cần</span>
+          <span>Theo dõi Chuyên cần</span>
           <span class="jump-badge">${attendanceList.length} buổi</span>
         </a>
         <a class="jump-pill" href="#overview-notifications">
-          <span>🔔 Thông báo & Phê duyệt</span>
+          <span>Thông báo & Phê duyệt</span>
           ${
             pendingCancelRequests.length
               ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingCancelRequests.length}</span>`
@@ -243,7 +243,7 @@ function renderParentOverviewPage(el, parent, student) {
           }
         </a>
         <a class="jump-pill" href="#overview-materials">
-          <span>📎 Tài liệu bài học của con</span>
+          <span>Tài liệu bài học của con</span>
           <span class="jump-badge">${allMaterials.length}</span>
         </a>
       </div>

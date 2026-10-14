@@ -213,25 +213,25 @@ function renderTeacherOverviewPage(el, teacher) {
       <div class="overview-jump-bar" id="overview-jump-bar">
         <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
         <a class="jump-pill active" href="#overview-kpis">
-          <span>📊 Chỉ số giảng dạy</span>
+          <span>Chỉ số giảng dạy</span>
         </a>
         <a class="jump-pill" href="#overview-schedule">
-          <span>📅 Lịch dạy tuần này</span>
+          <span>Lịch dạy tuần này</span>
           <span class="jump-badge">${weekClasses.length} lớp</span>
         </a>
         <a class="jump-pill" href="#overview-classes">
-          <span>📚 Lớp học của tôi</span>
+          <span>Lớp học của tôi</span>
           <span class="jump-badge">${myClasses.length}</span>
         </a>
         <a class="jump-pill" href="#overview-sessions">
-          <span>📋 Buổi học & Điểm danh</span>
+          <span>Buổi học & Điểm danh</span>
           <span class="jump-badge">${allSessions.length}</span>
         </a>
         <a class="jump-pill" href="#overview-grading">
-          <span>📝 Điểm & Nhận xét</span>
+          <span>Điểm & Nhận xét</span>
         </a>
         <a class="jump-pill" href="#overview-requests">
-          <span>🔔 Yêu cầu gửi Admin</span>
+          <span>Yêu cầu gửi Admin</span>
           ${
             pendingRequests.length
               ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingRequests.length}</span>`
@@ -399,10 +399,20 @@ function renderTeacherOverviewPage(el, teacher) {
                   <tbody>
                     ${myClasses
                       .map(
-                        (c, i) => `
-                          <tr>
+                        (c, i) => {
+                          const isClosed = c.status === "closed";
+                          const isPending = c.status === "pending";
+                          const isInactive = isClosed || isPending;
+                          const disabledAttr = isInactive ? "disabled" : "";
+                          const disabledStyle = isInactive ? "opacity:0.45;cursor:not-allowed;" : "";
+                          const closedTitle = isClosed ? "Lớp đã đóng – không thể thao tác" : isPending ? "Lớp chờ duyệt – chưa thể thao tác" : "";
+                          return `
+                          <tr style="${isClosed ? 'opacity:0.75;' : ''}">
                             <td>${i + 1}</td>
-                            <td><strong>${escapeHtml(c.className)}</strong></td>
+                            <td>
+                              <strong>${escapeHtml(c.className)}</strong>
+                              ${isClosed ? `<span class="badge closed" style="font-size:10px;margin-left:6px;">Đã đóng</span>` : ""}
+                            </td>
                             <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
                             <td>
                               <span class="slot-cell">
@@ -416,17 +426,18 @@ function renderTeacherOverviewPage(el, teacher) {
                               <button class="btn btn-sm btn-primary" data-t-cls-view="${c.id}" style="width:auto;padding:5px 12px;">
                                 Chi tiết lớp
                               </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-att="${c.id}">
-                                Điểm danh
+                              <button class="btn btn-sm btn-toggle" data-t-cls-att="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
+                                🔒 Điểm danh
                               </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-mat="${c.id}">
-                                Tài liệu
+                              <button class="btn btn-sm btn-toggle" data-t-cls-mat="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
+                                ${isInactive ? "🔒" : ""} Tài liệu
                               </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-grade="${c.id}">
-                                Nhập điểm
+                              <button class="btn btn-sm btn-toggle" data-t-cls-grade="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
+                                ${isInactive ? "🔒" : ""} Nhập điểm
                               </button>
                             </td>
-                          </tr>`
+                          </tr>`;
+                        }
                       )
                       .join("")}
                   </tbody>
@@ -479,20 +490,30 @@ function renderTeacherOverviewPage(el, teacher) {
                     ${allSessions.slice(0, 8).map(
                       (s, i) => {
                         const mats = listMaterialsBySession(s.id);
+                        const sessionCls = myClasses.find((c) => c.id === s.classId);
+                        const clsClosed = sessionCls?.status === "closed";
+                        const clsPending = sessionCls?.status === "pending";
+                        const clsInactive = clsClosed || clsPending;
+                        const disabledAttr = clsInactive ? "disabled" : "";
+                        const disabledStyle = clsInactive ? "opacity:0.45;cursor:not-allowed;" : "";
+                        const inactiveTitle = clsClosed ? "Lớp đã đóng – không thể thao tác" : clsPending ? "Lớp chờ duyệt" : "";
                         return `
-                          <tr>
+                          <tr style="${clsClosed ? 'opacity:0.75;' : ''}">
                             <td>${i + 1}</td>
                             <td><strong>${escapeHtml(s.title || `Buổi học ${i + 1}`)}</strong></td>
-                            <td>${escapeHtml(s.cls?.className || "—")}</td>
+                            <td>
+                              ${escapeHtml(s.cls?.className || "—")}
+                              ${clsClosed ? `<span class="badge closed" style="font-size:10px;margin-left:4px;">Đã đóng</span>` : ""}
+                            </td>
                             <td>${formatDate(s.date)} ${s.date === todayStr() ? `<span class="badge active" style="font-size:10px;">Hôm nay</span>` : ""}</td>
                             <td>${attBadge(s.id)}</td>
                             <td><span class="badge" style="background:#f4efff;color:#6a1bff;">${mats.length} file</span></td>
                             <td class="actions" style="text-align:right;">
-                              <button class="btn btn-sm btn-primary" data-t-session-mark="${s.id}" data-t-class-id="${s.classId}" style="width:auto;padding:5px 12px;">
-                                Điểm danh ngay
+                              <button class="btn btn-sm btn-primary" data-t-session-mark="${s.id}" data-t-class-id="${s.classId}" ${disabledAttr} title="${inactiveTitle}" style="width:auto;padding:5px 12px;${disabledStyle}">
+                                ${clsInactive ? "🔒" : ""} Điểm danh ngay
                               </button>
-                              <button class="btn btn-sm btn-toggle" data-t-session-mat="${s.id}" data-t-class-id="${s.classId}">
-                                Đính kèm tài liệu
+                              <button class="btn btn-sm btn-toggle" data-t-session-mat="${s.id}" data-t-class-id="${s.classId}" ${disabledAttr} title="${inactiveTitle}" style="${disabledStyle}">
+                                ${clsInactive ? "🔒" : ""} Đính kèm tài liệu
                               </button>
                             </td>
                           </tr>`;
@@ -673,7 +694,6 @@ function setupGradeSection(el, myClasses, teacher) {
                 const g45 = stGrades.filter((g) => g.type === "45m").map((g) => g.score);
                 const gSem = stGrades.filter((g) => g.type === "semester").map((g) => g.score);
 
-                // Tính điểm trung bình (15m hệ số 1, 45m hệ số 2, semester hệ số 3)
                 let totalScore = 0;
                 let totalCoeff = 0;
                 g15.forEach((s) => { totalScore += s * 1; totalCoeff += 1; });
@@ -683,6 +703,11 @@ function setupGradeSection(el, myClasses, teacher) {
 
                 const stComments = comments.filter((c) => c.studentId === st.id);
                 const latestComment = stComments.length ? stComments[stComments.length - 1].content : "Chưa có nhận xét";
+
+                const clsLocked = cls.status === "closed" || cls.status === "pending";
+                const lockAttr = clsLocked ? "disabled" : "";
+                const lockStyle = clsLocked ? "opacity:0.45;cursor:not-allowed;" : "";
+                const lockTitle = cls.status === "closed" ? "Lớp đã đóng – không thể thao tác" : cls.status === "pending" ? "Lớp chờ duyệt" : "";
 
                 return `
                   <tr>
@@ -695,11 +720,11 @@ function setupGradeSection(el, myClasses, teacher) {
                     <td><strong style="color:var(--brand-dark);">${avg}</strong></td>
                     <td style="max-width:220px;font-size:12.5px;color:#4b4668;">${escapeHtml(latestComment)}</td>
                     <td class="actions" style="text-align:right;">
-                      <button class="btn btn-sm btn-primary" data-grade-student="${st.id}" data-class-id="${cls.id}" style="width:auto;padding:4px 10px;">
-                        + Điểm
+                      <button class="btn btn-sm btn-primary" data-grade-student="${st.id}" data-class-id="${cls.id}" ${lockAttr} title="${lockTitle}" style="width:auto;padding:4px 10px;${lockStyle}">
+                        ${clsLocked ? "🔒" : "+"} Điểm
                       </button>
-                      <button class="btn btn-sm btn-toggle" data-comment-student="${st.id}" data-class-id="${cls.id}">
-                        Nhận xét
+                      <button class="btn btn-sm btn-toggle" data-comment-student="${st.id}" data-class-id="${cls.id}" ${lockAttr} title="${lockTitle}" style="${lockStyle}">
+                        ${clsLocked ? "🔒" : ""} Nhận xét
                       </button>
                     </td>
                   </tr>`;
@@ -712,6 +737,9 @@ function setupGradeSection(el, myClasses, teacher) {
     // Nút thêm điểm từng học sinh
     view.querySelectorAll("[data-grade-student]").forEach((btn) =>
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        if (cls.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể nhập điểm mới.`, "error");
+        if (cls.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
         const studentId = btn.dataset.gradeStudent;
         const student = students.find((s) => s.id === studentId);
         openAddGradeModal(student, cls, () => {
@@ -724,6 +752,9 @@ function setupGradeSection(el, myClasses, teacher) {
     // Nút ghi nhận xét từng học sinh
     view.querySelectorAll("[data-comment-student]").forEach((btn) =>
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        if (cls.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể ghi nhận xét mới.`, "error");
+        if (cls.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
         const studentId = btn.dataset.commentStudent;
         const student = students.find((s) => s.id === studentId);
         openAddCommentModal(student, cls, () => {
@@ -921,9 +952,13 @@ function setupTeacherDetailButtons(el, { teacher, myClasses, weekClasses, allSes
 }
 
 function setupTeacherActions(el, teacher, myClasses, allSessions) {
+  // Chỉ cho phép tạo buổi học cho các lớp đang mở
+  const openClasses = myClasses.filter((c) => c.status === "open");
+
   // Thêm buổi học nhanh
   const openNewSession = () => {
-    openCreateSessionModal(myClasses, () => {
+    if (!openClasses.length) return flash(el, "Không có lớp học nào đang mở để thêm buổi học. Lớp đã đóng không thể thêm buổi mới.", "error");
+    openCreateSessionModal(openClasses, () => {
       renderTeacherOverviewPage(el, teacher);
       flash(el, "Đã tạo buổi học mới thành công!");
     });
@@ -941,7 +976,9 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
 
   // Gửi yêu cầu đổi lịch học
   el.querySelector("#btn-req-reschedule")?.addEventListener("click", () => {
-    openRescheduleRequestModal(teacher, myClasses, () => {
+    const eligibleClasses = myClasses.filter((c) => c.status !== "closed");
+    if (!eligibleClasses.length) return flash(el, "Không có lớp học nào đang hoạt động để gửi yêu cầu đổi lịch.", "error");
+    openRescheduleRequestModal(teacher, eligibleClasses, () => {
       renderTeacherOverviewPage(el, teacher);
       flash(el, "Đã gửi yêu cầu đổi lịch học tới Quản trị viên để xét duyệt.");
     });
@@ -953,6 +990,8 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
     const classId = sel?.value || myClasses[0]?.id;
     const cls = myClasses.find((c) => c.id === classId);
     if (!cls) return flash(el, "Vui lòng chọn lớp học trước.", "error");
+    if (cls.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể nhập điểm mới.`, "error");
+    if (cls.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
 
     const students = listStudentsOfClass(cls.id);
     if (!students.length) return flash(el, "Lớp này chưa có học sinh để nhập điểm.", "error");
@@ -974,7 +1013,11 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
   // Điểm danh từ bảng lớp
   el.querySelectorAll("[data-t-cls-att]").forEach((btn) =>
     btn.addEventListener("click", () => {
+      if (btn.disabled) return;
       const classId = btn.dataset.tClsAtt;
+      const cls = myClasses.find((c) => c.id === classId);
+      if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể điểm danh.`, "error");
+      if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt – chưa thể điểm danh.`, "error");
       const clsSessions = listSessionsByClass(classId).sort((a, b) => b.date.localeCompare(a.date));
       if (!clsSessions.length) return flash(el, "Lớp này chưa có buổi học nào để điểm danh. Hãy bấm 'Thêm buổi học'.", "error");
       openAttendanceModal(clsSessions[0].id, classId, () => {
@@ -987,7 +1030,11 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
   // Tài liệu từ bảng lớp
   el.querySelectorAll("[data-t-cls-mat]").forEach((btn) =>
     btn.addEventListener("click", () => {
+      if (btn.disabled) return;
       const classId = btn.dataset.tClsMat;
+      const cls = myClasses.find((c) => c.id === classId);
+      if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể chỉnh sửa tài liệu.`, "error");
+      if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
       const clsSessions = listSessionsByClass(classId);
       if (!clsSessions.length) return flash(el, "Lớp này chưa có buổi học nào để đính kèm tài liệu.", "error");
       openMaterialsModal(clsSessions[0].id, classId, () => {
@@ -1000,8 +1047,11 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
   // Nhập điểm từ bảng lớp
   el.querySelectorAll("[data-t-cls-grade]").forEach((btn) =>
     btn.addEventListener("click", () => {
+      if (btn.disabled) return;
       const classId = btn.dataset.tClsGrade;
       const cls = myClasses.find((c) => c.id === classId);
+      if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể nhập điểm mới.`, "error");
+      if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
       const students = listStudentsOfClass(classId);
       if (!students.length) return flash(el, "Lớp này chưa có học sinh nào.", "error");
       openAddGradeModal(students[0], cls, () => {
@@ -1014,7 +1064,12 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
   // Điểm danh ngay từ bảng buổi học
   el.querySelectorAll("[data-t-session-mark]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      openAttendanceModal(btn.dataset.tSessionMark, btn.dataset.tClassId, () => {
+      if (btn.disabled) return;
+      const classId = btn.dataset.tClassId;
+      const cls = myClasses.find((c) => c.id === classId);
+      if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể điểm danh.`, "error");
+      if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
+      openAttendanceModal(btn.dataset.tSessionMark, classId, () => {
         renderTeacherOverviewPage(el, teacher);
         flash(el, "Đã lưu điểm danh buổi học thành công.");
       });
@@ -1024,7 +1079,12 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
   // Đính kèm tài liệu từ bảng buổi học
   el.querySelectorAll("[data-t-session-mat]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      openMaterialsModal(btn.dataset.tSessionMat, btn.dataset.tClassId, () => {
+      if (btn.disabled) return;
+      const classId = btn.dataset.tClassId;
+      const cls = myClasses.find((c) => c.id === classId);
+      if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể chỉnh sửa tài liệu.`, "error");
+      if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
+      openMaterialsModal(btn.dataset.tSessionMat, classId, () => {
         renderTeacherOverviewPage(el, teacher);
         flash(el, "Đã đính kèm tài liệu bài học thành công.");
       });
@@ -1118,58 +1178,247 @@ function openTeacherClassDetailModal(cls, teacher) {
   });
 }
 
+// ============================================================
+// HELPER: Tính trạng thái thời gian điểm danh của buổi học
+// Trả về object: { minutesElapsed, sessionEnded, sessionStarted, startTime, endTime }
+// ============================================================
+function getAttendanceTimeStatus(session) {
+  const cls = getClassById(session.classId);
+  if (!cls || !cls.schedule || !cls.schedule.length) {
+    return { minutesElapsed: null, sessionEnded: false, sessionStarted: false, startTime: null, endTime: null };
+  }
+
+  // Tính dayOfWeek từ session.date (JS: 0=CN, 1=T2...6=T7 → hệ thống: 2=T2...8=CN)
+  const sessionDate = new Date(session.date + "T00:00:00");
+  const jsDow = sessionDate.getDay(); // 0=CN, 1=T2...6=T7
+  const sysDow = jsDow === 0 ? 8 : jsDow + 1; // chuyển sang hệ thống 2–8
+
+  // Tìm lịch học khớp với ngày của buổi học
+  const slot = cls.schedule.find((s) => s.dayOfWeek === sysDow) || cls.schedule[0];
+
+  // Ghép date + time để tạo timestamp đầy đủ
+  const [startH, startM] = slot.start.split(":").map(Number);
+  const [endH, endM] = slot.end.split(":").map(Number);
+
+  const sessionStart = new Date(session.date + "T00:00:00");
+  sessionStart.setHours(startH, startM, 0, 0);
+
+  const sessionEnd = new Date(session.date + "T00:00:00");
+  sessionEnd.setHours(endH, endM, 0, 0);
+
+  const now = new Date();
+  const minutesElapsed = (now - sessionStart) / 60000; // số phút kể từ khi bắt đầu
+
+  return {
+    minutesElapsed,
+    sessionStarted: minutesElapsed >= 0,
+    sessionEnded: now > sessionEnd,
+    startTime: slot.start,
+    endTime: slot.end,
+  };
+}
+
+// ============================================================
+// HELPER: Lấy danh sách option select cho từng học sinh
+// theo logic thời gian điểm danh
+// curStatus: trạng thái điểm danh hiện tại (đã lưu)
+// minutesElapsed: số phút kể từ khi buổi bắt đầu (null = không có lịch)
+// sessionEnded: buổi học đã kết thúc
+// ============================================================
+function buildAttendanceOptions(curStatus, minutesElapsed, sessionEnded, hasRecord) {
+  // Nếu buổi học đã kết thúc → khóa toàn bộ
+  if (sessionEnded) {
+    return {
+      html: `
+        <select class="toolbar-select" disabled style="padding:4px 8px;font-size:13px;opacity:0.6;cursor:not-allowed;">
+          <option value="${curStatus}" selected>
+            ${curStatus === "present" ? "Có mặt" : curStatus === "late" ? "Đi trễ" : "Vắng mặt"}
+          </option>
+        </select>
+        <span class="muted" style="font-size:11px;margin-left:4px;">(Buổi đã kết thúc)</span>`,
+      locked: true,
+    };
+  }
+
+  // Nếu không có thông tin lịch học hoặc buổi chưa bắt đầu
+  if (minutesElapsed === null || minutesElapsed < 0) {
+    return {
+      html: `
+        <select class="toolbar-select" disabled style="padding:4px 8px;font-size:13px;opacity:0.6;cursor:not-allowed;">
+          <option value="absent" selected>Vắng mặt (mặc định)</option>
+        </select>
+        <span class="muted" style="font-size:11px;margin-left:4px;">(Chưa đến giờ học)</span>`,
+      locked: true,
+    };
+  }
+
+  // Trong buổi học: xây dựng option theo rule
+  const phase = minutesElapsed <= 15 ? "early" : minutesElapsed <= 30 ? "mid" : "late";
+
+  // Xác định các giá trị được phép chọn
+  let allowedValues = [];
+
+  if (phase === "early") {
+    // 0–15 phút: vắng mặt → có mặt được; present ↔ absent, late ↔ absent
+    // Thực ra: tất cả 3 trạng thái đều cho phép (chưa có record = absent mặc định)
+    allowedValues = ["present", "late", "absent"];
+  } else if (phase === "mid") {
+    // 15–30 phút: không được sửa absent → present; chỉ absent → late, hoặc present/late → absent
+    if (curStatus === "absent") {
+      allowedValues = ["late", "absent"]; // không được chọn present nữa
+    } else {
+      allowedValues = ["present", "late", "absent"];
+    }
+  } else {
+    // Sau 30 phút: không thể sửa absent → present hoặc absent → late
+    // Chỉ được: present → absent hoặc late → absent
+    if (curStatus === "absent") {
+      allowedValues = ["absent"]; // đã vắng mặt → không đổi được
+    } else if (curStatus === "present") {
+      allowedValues = ["present", "absent"];
+    } else if (curStatus === "late") {
+      allowedValues = ["late", "absent"];
+    } else {
+      allowedValues = ["absent"];
+    }
+  }
+
+  const opts = [
+    { value: "present", label: "Có mặt" },
+    { value: "late", label: "Đi trễ" },
+    { value: "absent", label: "Vắng mặt" },
+  ]
+    .filter((o) => allowedValues.includes(o.value))
+    .map((o) => `<option value="${o.value}" ${o.value === curStatus ? "selected" : ""}>${o.label}</option>`)
+    .join("");
+
+  return {
+    html: `<select class="toolbar-select" data-status-for="__STUDENT_ID__" style="padding:4px 8px;font-size:13px;">${opts}</select>`,
+    locked: false,
+  };
+}
+
 function openAttendanceModal(sessionId, classId, onDone) {
+  const session = DB.findById("sessions", sessionId);
+  const cls = getClassById(classId);
+  const classLocked = !cls || cls.status !== "open";
   const students = listStudentsOfClass(classId);
   const existing = listAttendanceBySession(sessionId);
   const attMap = new Map(existing.map((a) => [a.studentId, a]));
+
+  // Lấy thông tin thời gian buổi học
+  const timeStatus = session ? getAttendanceTimeStatus(session) : {
+    minutesElapsed: null, sessionEnded: false, sessionStarted: false, startTime: null, endTime: null
+  };
+
+  const { minutesElapsed, sessionEnded, sessionStarted, startTime, endTime } = timeStatus;
+
+  // Mô tả trạng thái thời gian hiện tại
+  let timeInfoHtml = "";
+  if (sessionEnded) {
+    timeInfoHtml = `<div style="background:#fff1f0;border:1px solid #ffa39e;border-radius:8px;padding:10px 14px;font-size:13px;color:#cf1322;">
+      🚫 <strong>Buổi học đã kết thúc lúc ${endTime}.</strong> Không thể chỉnh sửa điểm danh.
+    </div>`;
+  } else if (minutesElapsed !== null && minutesElapsed >= 0) {
+    const elapsedMin = Math.floor(minutesElapsed);
+    if (elapsedMin <= 15) {
+      timeInfoHtml = `<div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:10px 14px;font-size:13px;color:#389e0d;">
+        ✅ <strong>Trong 15 phút đầu</strong> (đã qua ${elapsedMin} phút) — Có thể đánh dấu <strong>Có mặt</strong>, <strong>Đi trễ</strong> hoặc <strong>Vắng mặt</strong>.
+      </div>`;
+    } else if (elapsedMin <= 30) {
+      timeInfoHtml = `<div style="background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:10px 14px;font-size:13px;color:#d46b08;">
+        ⚠️ <strong>Phút thứ ${elapsedMin}</strong> (15–30 phút) — Chỉ có thể sửa <strong>Vắng mặt</strong> sang <strong>Đi trễ</strong>. Không thể đánh dấu Có mặt cho học sinh đang vắng.
+      </div>`;
+    } else {
+      timeInfoHtml = `<div style="background:#fff2e8;border:1px solid #ffbb96;border-radius:8px;padding:10px 14px;font-size:13px;color:#c04000;">
+        🔒 <strong>Sau 30 phút</strong> (đã qua ${elapsedMin} phút) — Chỉ có thể sửa <strong>Có mặt/Đi trễ</strong> sang <strong>Vắng mặt</strong>. Không thể đánh mới Có mặt hoặc Đi trễ.
+      </div>`;
+    }
+  } else if (minutesElapsed !== null && minutesElapsed < 0) {
+    const waitMin = Math.ceil(-minutesElapsed);
+    timeInfoHtml = `<div style="background:#e6f7ff;border:1px solid #91d5ff;border-radius:8px;padding:10px 14px;font-size:13px;color:#096dd9;">
+      ℹ️ <strong>Buổi học chưa bắt đầu</strong> (còn ${waitMin} phút nữa mới đến ${startTime}). Điểm danh sẽ khả dụng khi buổi bắt đầu.
+    </div>`;
+  } else {
+    timeInfoHtml = `<div style="background:#f9f0ff;border:1px solid #d3adf7;border-radius:8px;padding:10px 14px;font-size:13px;color:#531dab;">
+      ℹ️ Lớp không có thông tin lịch học. Điểm danh hoạt động ở chế độ tự do.
+    </div>`;
+  }
+
+  // Banner khóa thao tác nếu lớp đã đóng/chưa duyệt
+  if (classLocked) {
+    timeInfoHtml = `<div style="background:#fff1f0;border:1px solid #ffa39e;border-radius:8px;padding:10px 14px;font-size:13px;color:#cf1322;">
+      🚫 <strong>Lớp "${escapeHtml(cls?.className || "")}" ${cls?.status === "closed" ? "đã đóng" : "chưa được Admin duyệt"}.</strong> Không thể chỉnh sửa điểm danh.
+    </div>`;
+  }
+
+  // Xây dựng hàng học sinh
+  const studentRows = students.map((st, i) => {
+    const rec = attMap.get(st.id);
+    // Default là vắng mặt nếu chưa có bản ghi
+    const curStatus = rec ? rec.status : "absent";
+    const note = rec?.note || "";
+    const hasRecord = !!rec;
+
+    // minutesElapsed === null và chưa có session → cho phép sửa tự do (không có lịch)
+    const effectiveElapsed = minutesElapsed === null ? 0 : minutesElapsed;
+    const { html: selectHtml, locked } = buildAttendanceOptions(curStatus, effectiveElapsed, sessionEnded, hasRecord);
+
+    const finalSelectHtml = selectHtml.replace("__STUDENT_ID__", st.id);
+
+    return `
+      <tr data-st-att="${st.id}" data-locked="${locked || classLocked}">
+        <td>${i + 1}</td>
+        <td><span class="badge student">${st.id}</span></td>
+        <td><strong>${escapeHtml(st.fullName)}</strong></td>
+        <td>
+          ${finalSelectHtml}
+        </td>
+        <td>
+          <input type="text" data-note-for="${st.id}" value="${escapeHtml(note)}"
+            placeholder="Lý do nếu vắng..."
+            ${locked ? "disabled" : ""}
+            style="padding:6px 10px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;width:100%;${locked ? 'opacity:0.6;cursor:not-allowed;' : ''}" />
+        </td>
+      </tr>`;
+  }).join("");
 
   openModal({
     title: "Điểm danh Buổi học",
     size: "modal-lg",
     body: `
       <div style="display:flex;flex-direction:column;gap:12px;">
-        <p class="muted">Đánh dấu trạng thái có mặt của từng học sinh trong buổi học này.</p>
+        ${timeInfoHtml}
+        <p class="muted" style="font-size:12.5px;margin:0;">📋 <strong>Mặc định:</strong> Tất cả học sinh được đánh là <strong>Vắng mặt</strong>. Giáo viên cần cập nhật trạng thái cho từng học sinh theo đúng thời điểm.</p>
         <div class="table-wrap" style="max-height:380px;overflow-y:auto;">
           <table>
             <thead>
               <tr><th>#</th><th>Mã HS</th><th>Họ tên</th><th>Trạng thái</th><th>Ghi chú lý do</th></tr>
             </thead>
             <tbody>
-              ${students.map((st, i) => {
-                const rec = attMap.get(st.id);
-                const curStatus = rec ? rec.status : "present";
-                const note = rec?.note || "";
-                return `
-                  <tr data-st-att="${st.id}">
-                    <td>${i + 1}</td>
-                    <td><span class="badge student">${st.id}</span></td>
-                    <td><strong>${escapeHtml(st.fullName)}</strong></td>
-                    <td>
-                      <select class="toolbar-select" data-status-for="${st.id}" style="padding:4px 8px;font-size:13px;">
-                        <option value="present" ${curStatus === "present" ? "selected" : ""}>Có mặt</option>
-                        <option value="late" ${curStatus === "late" ? "selected" : ""}>Đi trễ</option>
-                        <option value="absent" ${curStatus === "absent" ? "selected" : ""}>Vắng mặt</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input type="text" data-note-for="${st.id}" value="${escapeHtml(note)}" placeholder="Lý do nếu vắng..." style="padding:6px 10px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;width:100%;" />
-                    </td>
-                  </tr>`;
-              }).join("")}
+              ${studentRows}
             </tbody>
           </table>
         </div>
       </div>`,
     foot: `
       <button class="btn" data-close>Hủy</button>
-      <button class="btn btn-primary" id="btn-save-attendance">Lưu kết quả điểm danh</button>`,
+      ${sessionEnded || classLocked
+        ? `<button class="btn" disabled style="opacity:0.5;cursor:not-allowed;">Không thể lưu ${classLocked ? "(Lớp đã đóng/chưa duyệt)" : "(Buổi đã kết thúc)"}</button>`
+        : `<button class="btn btn-primary" id="btn-save-attendance">Lưu kết quả điểm danh</button>`
+      }`,
     onMount: (root, close) => {
+      if (sessionEnded || classLocked) return; // Không gán sự kiện nếu không thể thao tác
+
       root.querySelector("#btn-save-attendance")?.addEventListener("click", () => {
         const rows = root.querySelectorAll("tr[data-st-att]");
         rows.forEach((row) => {
+          if (row.dataset.locked === "true") return; // Bỏ qua hàng bị khóa
           const studentId = row.dataset.stAtt;
-          const status = row.querySelector(`select[data-status-for="${studentId}"]`).value;
-          const note = row.querySelector(`input[data-note-for="${studentId}"]`).value.trim();
+          const selectEl = row.querySelector(`select[data-status-for="${studentId}"]`);
+          if (!selectEl) return; // select bị disabled không có data-status-for
+          const status = selectEl.value;
+          const note = row.querySelector(`input[data-note-for="${studentId}"]`)?.value.trim() || "";
           markAttendance(sessionId, studentId, status, note);
         });
         close();
@@ -1223,13 +1472,28 @@ function openMaterialsModal(sessionId, classId, onDone) {
         const err = root.querySelector("#mat-error");
         err.hidden = true;
 
+        const cls = getClassById(classId);
+        if (!cls || cls.status !== "open") {
+          err.textContent = cls?.status === "closed"
+            ? "Lớp đã đóng – không thể chỉnh sửa tài liệu."
+            : "Lớp chưa được Admin duyệt.";
+          err.hidden = false;
+          return;
+        }
+
         if (!title || !link) {
           err.textContent = "Vui lòng nhập đầy đủ tên tài liệu và link.";
           err.hidden = false;
           return;
         }
 
-        attachMaterial(sessionId, { fileName: title, fileData: link });
+        try {
+          attachMaterial(sessionId, { fileName: title, fileData: link });
+        } catch (e) {
+          err.textContent = e?.message || "Không thể đính kèm tài liệu.";
+          err.hidden = false;
+          return;
+        }
         close();
         onDone();
       });
@@ -1280,8 +1544,24 @@ function openAddGradeModal(student, cls, onDone) {
           err.hidden = false;
           return;
         }
+        if (cls.status === "closed") {
+          err.textContent = `Lớp "${cls.className}" đã đóng – không thể nhập điểm mới.`;
+          err.hidden = false;
+          return;
+        }
+        if (cls.status === "pending") {
+          err.textContent = `Lớp "${cls.className}" chưa được Admin duyệt.`;
+          err.hidden = false;
+          return;
+        }
 
-        addGrade(cls.id, stId, { type, score });
+        try {
+          addGrade(cls.id, stId, { type, score });
+        } catch (e) {
+          err.textContent = e?.message || "Không thể lưu điểm.";
+          err.hidden = false;
+          return;
+        }
         close();
         onDone();
       });
@@ -1314,8 +1594,24 @@ function openAddCommentModal(student, cls, onDone) {
           err.hidden = false;
           return;
         }
+        if (cls.status === "closed") {
+          err.textContent = `Lớp "${cls.className}" đã đóng – không thể ghi nhận xét mới.`;
+          err.hidden = false;
+          return;
+        }
+        if (cls.status === "pending") {
+          err.textContent = `Lớp "${cls.className}" chưa được Admin duyệt.`;
+          err.hidden = false;
+          return;
+        }
 
-        addComment(cls.id, student.id, content);
+        try {
+          addComment(cls.id, student.id, content);
+        } catch (e) {
+          err.textContent = e?.message || "Không thể lưu nhận xét.";
+          err.hidden = false;
+          return;
+        }
         close();
         onDone();
       });
@@ -1366,7 +1662,22 @@ function openCreateSessionModal(myClasses, onDone) {
           return;
         }
 
-        createSession(classId, { title, date, room });
+        const targetCls = getClassById(classId);
+        if (!targetCls || targetCls.status !== "open") {
+          err.textContent = targetCls?.status === "closed"
+            ? "Lớp đã đóng – không thể thêm buổi học mới."
+            : "Lớp chưa được Admin duyệt.";
+          err.hidden = false;
+          return;
+        }
+
+        try {
+          createSession(classId, { title, date, room });
+        } catch (e) {
+          err.textContent = e?.message || "Không thể tạo buổi học.";
+          err.hidden = false;
+          return;
+        }
         close();
         onDone();
       });
@@ -1497,6 +1808,11 @@ function openRescheduleRequestModal(teacher, myClasses, onDone) {
 
         const cls = getClassById(classId);
         if (!cls) return;
+        if (cls.status === "closed") {
+          err.textContent = "Lớp đã đóng – không thể gửi yêu cầu đổi lịch.";
+          err.hidden = false;
+          return;
+        }
 
         DB.insert("class_requests", {
           type: "reschedule",

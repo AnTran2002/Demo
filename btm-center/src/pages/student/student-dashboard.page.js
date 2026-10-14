@@ -229,24 +229,24 @@ function renderStudentOverviewPage(el, student) {
       <div class="overview-jump-bar" id="overview-jump-bar">
         <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
         <a class="jump-pill active" href="#overview-kpis">
-          <span>📊 Chỉ số học tập</span>
+          <span>Chỉ số học tập</span>
         </a>
         <a class="jump-pill" href="#overview-schedule">
-          <span>📅 Thời khóa biểu tuần</span>
+          <span>Thời khóa biểu tuần</span>
         </a>
         <a class="jump-pill" href="#overview-my-classes">
-          <span>📚 Lớp đang học</span>
+          <span>Lớp đang học</span>
           <span class="jump-badge">${myClasses.length}</span>
         </a>
         <a class="jump-pill" href="#overview-grades">
-          <span>📝 Bảng điểm & Nhận xét</span>
+          <span>Bảng điểm & Nhận xét</span>
         </a>
         <a class="jump-pill" href="#overview-materials">
-          <span>📎 Tài liệu bài giảng</span>
+          <span>Tài liệu bài giảng</span>
           <span class="jump-badge">${allMaterials.length}</span>
         </a>
         <a class="jump-pill" href="#overview-enroll">
-          <span>🎓 Đăng ký lớp mới</span>
+          <span>Đăng ký lớp mới</span>
           <span class="jump-badge">${openClasses.filter((c) => !c.isEnrolled).length}</span>
         </a>
       </div>

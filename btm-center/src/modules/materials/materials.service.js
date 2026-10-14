@@ -2,6 +2,14 @@
 import { DB } from "../../core/db.js";
 
 export function attachMaterial(sessionId, { fileName, fileData }) {
+  const session = DB.findById("sessions", sessionId);
+  if (session) {
+    const cls = DB.findById("classes", session.classId);
+    if (cls && cls.status !== "open") {
+      throw new Error(cls.status === "closed" ? "Lớp đã đóng" : "Lớp chưa được Admin duyệt");
+    }
+  }
+
   const material = DB.insert("materials", {
     sessionId,
     fileName,
@@ -9,8 +17,8 @@ export function attachMaterial(sessionId, { fileName, fileData }) {
     uploadedAt: new Date().toISOString(),
   });
 
-  const session = DB.findById("sessions", sessionId);
-  const materials = [...(session.materials || []), material.id];
+  const refreshedSession = DB.findById("sessions", sessionId);
+  const materials = [...(refreshedSession?.materials || []), material.id];
   DB.update("sessions", sessionId, { materials });
 
   return material;

@@ -1,7 +1,10 @@
 // modules/sessions/sessions.service.js — Phụ trách: Thành viên C
 import { DB } from "../../core/db.js";
+import { assertClassOpen } from "../classes/classes.service.js";
 
-export function createSession(classId, { date, title }) {
+export function createSession(classId, { date, title } = {}) {
+  // Lớp đã đóng/chưa duyệt => không thể tạo buổi học mới
+  assertClassOpen(classId);
   return DB.insert("sessions", { classId, date, title, materials: [] });
 }
 
@@ -10,6 +13,13 @@ export function listSessionsByClass(classId) {
 }
 
 export function markAttendance(sessionId, studentId, status, note = "") {
+  const session = DB.findById("sessions", sessionId);
+  if (session) {
+    const cls = DB.findById("classes", session.classId);
+    if (cls && cls.status !== "open") {
+      throw new Error(cls.status === "closed" ? "Lớp đã đóng" : "Lớp chưa được Admin duyệt");
+    }
+  }
   const existing = DB.getAll("attendance").find(
     (a) => a.sessionId === sessionId && a.studentId === studentId
   );
