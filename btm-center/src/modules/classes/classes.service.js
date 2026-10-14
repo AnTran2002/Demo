@@ -17,17 +17,43 @@ export function listClassesByTeacher(teacherId) {
   return DB.getAll("classes").filter((c) => c.teacherId === teacherId);
 }
 
+export function getTeacherName(teacherId) {
+  if (!teacherId) return "Chưa phân công";
+  const users = DB.getAll("users");
+  const teacher = users.find((u) => u.id === teacherId);
+  return teacher ? teacher.fullName : "Chưa phân công";
+}
+
 export function listOpenClasses(subject = null) {
-  const classes = DB.getAll("classes").filter((c) => c.status === "open");
+  const users = DB.getAll("users");
+  const teacherMap = new Map(users.map((u) => [u.id, u.fullName]));
+  const classes = DB.getAll("classes")
+    .filter((c) => c.status === "open")
+    .map((c) => ({
+      ...c,
+      teacherName: teacherMap.get(c.teacherId) || "Chưa phân công",
+    }));
   return subject ? classes.filter((c) => c.subject === subject) : classes;
 }
 
 export function getClassById(classId) {
-  return DB.findById("classes", classId);
+  const cls = DB.findById("classes", classId);
+  if (!cls) return null;
+  const users = DB.getAll("users");
+  const teacher = users.find((u) => u.id === cls.teacherId);
+  return {
+    ...cls,
+    teacherName: teacher ? teacher.fullName : "Chưa phân công",
+  };
 }
 
 export function listAllClasses() {
-  return DB.getAll("classes");
+  const users = DB.getAll("users");
+  const teacherMap = new Map(users.map((u) => [u.id, u.fullName]));
+  return DB.getAll("classes").map((c) => ({
+    ...c,
+    teacherName: teacherMap.get(c.teacherId) || "Chưa phân công",
+  }));
 }
 
 export function setClassStatus(classId, status) {

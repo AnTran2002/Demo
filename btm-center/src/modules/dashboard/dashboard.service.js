@@ -50,10 +50,18 @@ export function sessionAttendanceInfo(sessionId) {
   };
 }
 
+export function getTeacherName(teacherId) {
+  if (!teacherId) return "Chưa phân công";
+  const users = DB.getAll("users");
+  const teacher = users.find((u) => u.id === teacherId);
+  return teacher ? teacher.fullName : "Chưa phân công";
+}
+
 function enrichClass(c) {
   const sessions = listSessions(c.id);
   return {
     ...c,
+    teacherName: getTeacherName(c.teacherId),
     enrolled: enrolledCountOf(c.id),
     sessions,
     nextSession: sessions.find((s) => s.date >= todayStr()) || null,
@@ -132,7 +140,12 @@ export function getStudentOverview(studentId) {
     .map((e) => {
       const cls = classes.find((c) => c.id === e.classId);
       return cls
-        ? { ...enrichClass(cls), enrollmentId: e.id, enrolled: enrolledCount(cls.id) }
+        ? {
+            ...enrichClass(cls),
+            teacherName: getTeacherName(cls.teacherId),
+            enrollmentId: e.id,
+            enrolled: enrolledCount(cls.id),
+          }
         : null;
     })
     .filter((c) => c && c.status === "open");
@@ -144,6 +157,7 @@ export function getStudentOverview(studentId) {
     .filter((c) => c.status === "open")
     .map((c) => ({
       ...c,
+      teacherName: getTeacherName(c.teacherId),
       enrolled: enrolledCount(c.id),
       isEnrolled: enrolledIds.has(c.id),
       enrollmentId: myEnrollmentId(c.id),

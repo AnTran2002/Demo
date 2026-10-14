@@ -1,11 +1,8 @@
-// pages/student/student-dashboard.page.js — Phụ trách: Thành viên A/C
-// Lịch học (overview + chi tiết lớp: buổi học, tài liệu, điểm, nhận xét) · Đăng ký lớp
+// pages/student/student-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Học tập Hợp nhất (Student Role)
 import { Session } from "../../core/session.js";
-import { renderShell, ICONS, formatSchedule } from "../shell.js";
+import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
-import {
-  enroll,
-} from "../../modules/enrollment/enrollment.service.js";
+import { enroll } from "../../modules/enrollment/enrollment.service.js";
 import {
   requestCancelClass,
   getPendingRequest,
@@ -18,410 +15,963 @@ import { listGradesByStudentInClass } from "../../modules/grades/grades.service.
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
 import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { listStudentsOfClass, getClassById } from "../../modules/classes/classes.service.js";
+import { DB } from "../../core/db.js";
+import { escapeHtml } from "../../core/html.js";
 import {
-  SUBJECTS,
   subjectLabel,
   formatDate,
   todayStr,
   ATTENDANCE_LABELS,
+  WEEKDAYS,
 } from "../../data/constants.js";
 
-const genderBadge = (u) => {
-  const g = String(u.gender || "").toLowerCase();
-  if (g.startsWith("nữ") || g.startsWith("nam")) {
-    const female = g.startsWith("nữ");
-    return `<span class="badge ${female ? "gender-female" : "gender-male"}">${female ? "Nữ" : "Nam"}</span>`;
-  }
-  return `<span class="muted">—</span>`;
-};
+const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
 
-const statCard = (icon, value, label) => `
-  <div class="stat-card">
-    <span class="stat-icon">${icon}</span>
-    <div>
-      <div class="stat-value">${value}</div>
-      <div class="stat-label">${label}</div>
-    </div>
-  </div>`;
+const statusBadge = (status) => {
+  if (status === "open") return `<span class="badge open">Đang mở</span>`;
+  if (status === "pending") return `<span class="badge late">Chờ phê duyệt</span>`;
+  return `<span class="badge closed">Đã đóng</span>`;
+};
 
 const materialLink = (m) => {
-  const isUrl = String(m.fileData).startsWith("http");
-  const target = isUrl ? m.fileData : m.fileData.startsWith("data:") ? m.fileData : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
+  const isUrl = String(m.fileData || "").startsWith("http");
+  const target = isUrl
+    ? m.fileData
+    : String(m.fileData || "").startsWith("data:")
+    ? m.fileData
+    : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
   return isUrl
-    ? `<a class="btn btn-sm" href="${target}" target="_blank" rel="noopener">${ICONS.download} Mở</a>`
-    : `<a class="btn btn-sm" href="${target}" download="${m.fileName}">${ICONS.download} Tải về</a>`;
+    ? `<a class="btn btn-sm btn-primary" href="${target}" target="_blank" rel="noopener" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`
+    : `<a class="btn btn-sm btn-primary" href="${target}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
 };
 
-const myAttBadge = (sessionId, studentId) => {
-  const rec = listAttendanceBySession(sessionId).find((a) => a.studentId === studentId);
-  if (!rec) return `<span class="badge inactive">Chưa điểm danh</span>`;
-  const cls = rec.status === "present" ? "active" : rec.status === "late" ? "late" : "closed";
-  return `<span class="badge ${cls}">${ATTENDANCE_LABELS[rec.status]}</span>`;
-};
+function flash(el, message, type = "success") {
+  let box = el.querySelector("#student-flash");
+  if (!box) {
+    box = document.createElement("p");
+    box.id = "student-flash";
+    box.className = "admin-flash";
+    el.prepend(box);
+  }
+  box.textContent = message;
+  box.dataset.type = type;
+  box.hidden = false;
+  window.clearTimeout(box._timer);
+  box._timer = window.setTimeout(() => (box.hidden = true), 3200);
+}
 
+function openModal({ title, body, foot = "", size = "", onMount }) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal ${size}" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 class="modal-title">${title}</h3>
+        <button class="icon-btn" data-close aria-label="Đóng">${ICONS.close}</button>
+      </div>
+      <div class="modal-body">${body}</div>
+      ${foot ? `<div class="modal-foot">${foot}</div>` : ""}
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  document.addEventListener("keydown", onKey);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelectorAll("[data-close]").forEach((btn) =>
+    btn.addEventListener("click", close)
+  );
+  onMount?.(overlay, close);
+  return close;
+}
+
+const infoRow = (key, value) => `
+  <div class="modal-info">
+    <span class="k">${key}</span>
+    <span class="v">${value}</span>
+  </div>`;
+
+// =============================================================================
+// KHỞI TẠO TRANG HỌC SINH: DUY NHẤT 1 TAB "TỔNG QUAN"
+// =============================================================================
 export function renderStudentDashboard(container) {
   const student = Session.getCurrentUser();
 
   const tabs = [
-    { id: "overview", label: "Lịch học", icon: ICONS.calendar, active: true, render: renderOverview },
-    { id: "enroll", label: "Đăng ký lớp", icon: ICONS.classes, active: false, render: renderEnroll },
+    {
+      id: "overview",
+      label: "Tổng quan",
+      icon: ICONS.grid,
+      active: true,
+      render: (content) => renderStudentOverviewPage(content, student),
+    },
   ];
 
-  renderShell(container, { title: "Lịch học", items: tabs });
+  renderShell(container, { title: "Tổng quan Học tập", items: tabs });
   const content = container.querySelector("#tab-content");
 
-  container
-    .querySelectorAll(".nav-item[data-tab]")
-    .forEach((btn) =>
-      btn.addEventListener("click", () => switchTab(btn.dataset.tab))
-    );
-
-  function switchTab(id) {
-    container
-      .querySelectorAll(".nav-item[data-tab]")
-      .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-    container.querySelector("#page-title").textContent = tabs.find((t) => t.id === id).label;
-    tabs.find((t) => t.id === id).render(content, student);
-  }
-
-  switchTab("overview");
+  renderStudentOverviewPage(content, student);
 }
 
-function renderOverview(el, student) {
-  const d = getStudentOverview(student.id);
+// =============================================================================
+// TRANG TỔNG QUAN HỌC SINH (HỢP NHẤT TOÀN BỘ CÁC KHỐI THÔNG TIN)
+// =============================================================================
+function renderStudentOverviewPage(el, student) {
+  const data = getStudentOverview(student.id);
+  const myClasses = data.myClasses;
+  const openClasses = data.openClasses;
 
-  const flash = (msg) => {
-    let box = el.querySelector("#overview-msg");
-    box.textContent = msg;
-    box.hidden = false;
-    setTimeout(() => (box.hidden = true), 2500);
-  };
+  // Thu thập điểm của học sinh ở tất cả các môn
+  let totalScore = 0;
+  let totalCoeff = 0;
+  const classGradesMap = new Map();
+  myClasses.forEach((c) => {
+    const grades = listGradesByStudentInClass(c.id, student.id);
+    const g15 = grades.filter((g) => g.type === "15m").map((g) => g.score);
+    const g45 = grades.filter((g) => g.type === "45m").map((g) => g.score);
+    const gSem = grades.filter((g) => g.type === "semester").map((g) => g.score);
+
+    let clsScore = 0;
+    let clsCoeff = 0;
+    g15.forEach((s) => { clsScore += s * 1; clsCoeff += 1; totalScore += s * 1; totalCoeff += 1; });
+    g45.forEach((s) => { clsScore += s * 2; clsCoeff += 2; totalScore += s * 2; totalCoeff += 2; });
+    gSem.forEach((s) => { clsScore += s * 3; clsCoeff += 3; totalScore += s * 3; totalCoeff += 3; });
+    const avg = clsCoeff > 0 ? (clsScore / clsCoeff).toFixed(1) : "—";
+    classGradesMap.set(c.id, { g15, g45, gSem, avg });
+  });
+  const overallAvg = totalCoeff > 0 ? (totalScore / totalCoeff).toFixed(1) : "—";
+
+  // Thống kê chuyên cần của học sinh (các buổi đã điểm danh)
+  let attTotal = 0;
+  let attPresent = 0;
+  const sessionsList = [];
+  myClasses.forEach((c) => {
+    const sessions = listSessionsByClass(c.id);
+    sessions.forEach((s) => {
+      const records = listAttendanceBySession(s.id);
+      const myRec = records.find((a) => a.studentId === student.id);
+      if (myRec) {
+        attTotal++;
+        if (myRec.status === "present" || myRec.status === "late") attPresent++;
+      }
+      sessionsList.push({ ...s, cls: c, myAtt: myRec });
+    });
+  });
+  const attendanceRate = attTotal > 0 ? pct(attPresent, attTotal) : 100;
+  const upcomingSessions = sessionsList
+    .filter((s) => s.date >= todayStr())
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Thời khóa biểu tuần của học sinh
+  const currentDow = new Date().getDay() === 0 ? 8 : new Date().getDay() + 1;
+  const daysWeek = [2, 3, 4, 5, 6, 7, 8].map((day) => {
+    const label = WEEKDAYS.find((w) => w.value === day)?.label || `T${day}`;
+    const slots = [];
+    myClasses.forEach((c) => {
+      (c.schedule || []).forEach((s) => {
+        if (s.dayOfWeek === day) {
+          slots.push({
+            className: c.className,
+            subject: c.subject,
+            time: `${s.start}–${s.end}`,
+            teacherName: c.teacherName || "Giáo viên",
+          });
+        }
+      });
+    });
+    return { day, label, slots, isToday: day === currentDow };
+  });
+
+  // Thu thập tất cả tài liệu bài học của các lớp đang học
+  const allMaterials = [];
+  myClasses.forEach((c) => {
+    listSessionsByClass(c.id).forEach((s) => {
+      listMaterialsBySession(s.id).forEach((m) => {
+        allMaterials.push({ ...m, sessionTitle: s.title, date: s.date, className: c.className });
+      });
+    });
+  });
+
+  // Nhận xét từ giáo viên
+  const myComments = listCommentsByStudent(student.id);
 
   el.innerHTML = `
-    <div class="welcome-banner">
-      <div>
-        <h2 class="welcome-title">Xin chào, ${student.fullName}!</h2>
-        <p class="welcome-sub">Bạn đang theo học ${d.myClasses.length} lớp trong trung tâm.</p>
-        <p class="welcome-sub">Mã học sinh: <strong>${student.id}</strong> — phụ huynh dùng mã này để liên kết tài khoản phụ huynh.</p>
+    <p class="admin-flash" id="student-flash" hidden></p>
+
+    <div class="overview-dashboard" id="tab-overview" data-page="hoc-sinh">
+
+      <!-- Banner chào mừng học sinh -->
+      <div class="welcome-banner">
+        <div>
+          <h2 class="welcome-title">Xin chào, ${escapeHtml(student.fullName)}!</h2>
+          <p class="welcome-sub">
+            Mã học sinh: <strong>${student.id}</strong> · Tài khoản: @${escapeHtml(student.username)} · Hôm nay: ${formatDate(todayStr())}
+          </p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-sm btn-primary" id="btn-banner-enroll" style="width:auto;padding:8px 16px;cursor:pointer;">
+            ${ICONS.plus}
+            <span>Đăng ký thêm lớp</span>
+          </button>
+        </div>
       </div>
-      <span class="badge student">Học sinh</span>
-    </div>
 
-    <div class="stat-grid">
-      ${statCard(ICONS.classes, d.myClasses.length, "Lớp đang học")}
-      ${statCard(ICONS.school, d.openClasses.length, "Lớp đang mở")}
-    </div>
+      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
+      <div class="overview-jump-bar" id="overview-jump-bar">
+        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
+        <a class="jump-pill active" href="#overview-kpis">
+          <span>📊 Chỉ số học tập</span>
+        </a>
+        <a class="jump-pill" href="#overview-schedule">
+          <span>📅 Thời khóa biểu tuần</span>
+        </a>
+        <a class="jump-pill" href="#overview-my-classes">
+          <span>📚 Lớp đang học</span>
+          <span class="jump-badge">${myClasses.length}</span>
+        </a>
+        <a class="jump-pill" href="#overview-grades">
+          <span>📝 Bảng điểm & Nhận xét</span>
+        </a>
+        <a class="jump-pill" href="#overview-materials">
+          <span>📎 Tài liệu bài giảng</span>
+          <span class="jump-badge">${allMaterials.length}</span>
+        </a>
+        <a class="jump-pill" href="#overview-enroll">
+          <span>🎓 Đăng ký lớp mới</span>
+          <span class="jump-badge">${openClasses.filter((c) => !c.isEnrolled).length}</span>
+        </a>
+      </div>
 
-    <p id="overview-msg" class="form-error" role="alert" hidden></p>
-    <div class="section-title">Lịch học của tôi</div>
-    ${
-      d.myClasses.length
-        ? `<div class="class-grid">${d.myClasses.map((c) => myClassCard(c, student.id)).join("")}</div>`
-        : `<div class="empty panel">Bạn chưa đăng ký lớp nào. Hãy vào mục “Đăng ký lớp” để bắt đầu.</div>`
-    }
-
-    <div class="section-title">Bảng điểm của tôi</div>
-    <div class="panel">
-      ${(() => {
-        const rows = d.myClasses
-          .map((c) => ({ cls: c, grades: listGradesByStudentInClass(c.id, student.id) }))
-          .filter((r) => r.grades.length);
-        const total = rows.reduce((s, r) => s + r.grades.length, 0);
-        const avg = total
-          ? rows.reduce((s, r) => s + r.grades.reduce((ss, g) => ss + g.score, 0), 0) / total
-          : null;
-        return `
-          <div class="panel-head">
-            <h2 class="panel-title">Theo dõi điểm số</h2>
-            <span class="count-chip">${total} cột điểm${avg !== null ? ` · TBC ${avg.toFixed(1)}` : ""}</span>
+      <!-- 1. DIV CHỈ SỐ HỌC TẬP (KPI) -->
+      <div class="overview-panel" id="overview-kpis">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap">${ICONS.grid}</span>
+            <div>
+              <h2 class="panel-title">Chỉ số Học tập Toàn diện</h2>
+              <span class="muted" style="font-size:12px;">Đánh giá tiến độ và kết quả học tập của bạn</span>
+            </div>
           </div>
-          ${
-            rows.length
-              ? `<div class="table-wrap"><table>
-                  <thead><tr><th>Lớp</th><th>Môn</th><th>Loại</th><th>Điểm</th><th>Ghi chú</th></tr></thead>
-                  <tbody>${rows
-                    .map(
-                      (r) => r.grades.map(
-                        (g) => `
-                          <tr>
-                            <td><strong>${r.cls.className}</strong></td>
-                            <td><span class="badge subject">${subjectLabel(r.cls.subject)}</span></td>
-                            <td>${g.type}</td>
-                            <td><strong>${g.score}</strong></td>
-                            <td class="muted">${g.note || "—"}</td>
-                          </tr>`
-                      ).join("")
-                    )
-                    .join("")}</tbody>
-                </table></div>`
-              : `<div class="empty">Bạn chưa có điểm nào. Điểm số sẽ hiển thị tại đây ngay khi giáo viên nhập.</div>`
-          }`;
-      })()}
-    </div>
-  `;
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-student-kpi">
+              ${ICONS.eye}
+              <span>Xem chi tiết chỉ số</span>
+            </button>
+          </div>
+        </div>
+        <div style="padding: 20px 24px;">
+          <div class="kpi-row">
+            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
+              <div class="kpi-icon">${ICONS.classes}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${myClasses.length}</span>
+                <span class="kpi-tit">Lớp đang theo học</span>
+                <span class="kpi-sub">Môn: ${myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có"}</span>
+              </div>
+            </div>
 
-  el.querySelectorAll("[data-request-cancel]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      try {
-        requestCancelClass(student.id, btn.dataset.requestCancel);
-        renderOverview(el, student);
-      } catch (err) {
-        flash(err.message);
-      }
-    })
-  );
+            <div class="kpi-card" style="--kpi-color:#0d8a5f;--kpi-bg:#e6f8f0;">
+              <div class="kpi-icon">${ICONS.edit}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${overallAvg}</span>
+                <span class="kpi-tit">Điểm trung bình chung</span>
+                <span class="kpi-sub">${overallAvg !== "—" && parseFloat(overallAvg) >= 8 ? "Học lực giỏi" : "Tiến độ ổn định"}</span>
+              </div>
+            </div>
 
-  el.querySelectorAll("[data-detail]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      renderClassDetail(el, student, btn.dataset.detail);
-    })
-  );
-}
+            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
+              <div class="kpi-icon">${ICONS.check}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${attendanceRate}%</span>
+                <span class="kpi-tit">Tỷ lệ chuyên cần</span>
+                <span class="kpi-sub">${attPresent}/${attTotal || 1} buổi có mặt</span>
+              </div>
+            </div>
 
-function canCancel(classId) {
-  return listSessionsByClass(classId).length === 0;
-}
+            <div class="kpi-card" style="--kpi-color:#6a1bff;--kpi-bg:#f2ecff;">
+              <div class="kpi-icon">${ICONS.calendar}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${upcomingSessions.length}</span>
+                <span class="kpi-tit">Buổi học sắp tới</span>
+                <span class="kpi-sub">${upcomingSessions.length ? `Gần nhất: ${formatDate(upcomingSessions[0].date)}` : "Chưa có lịch mới"}</span>
+              </div>
+            </div>
 
-const myClassCard = (c, studentId) => {
-  const cancellable = canCancel(c.id);
-  const pending = getPendingRequest(studentId, c.id);
-  const nextLabel = c.nextSession
-    ? `Buổi tới: ${formatDate(c.nextSession.date)} · ${c.nextSession.title || "Chưa có tiêu đề"}`
-    : "Chưa có buổi học nào";
-  return `
-  <div class="class-card">
-    <div class="class-top">
-      <span class="badge subject">${subjectLabel(c.subject)}</span>
-      <span class="badge ${c.status === "open" ? "open" : "closed"}">${c.status === "open" ? "Đang mở" : "Đã đóng"}</span>
-    </div>
-    <div class="class-name">${c.className}</div>
-    <div class="class-meta">
-      <span>${ICONS.calendar} ${formatSchedule(c.schedule)}</span>
-      <span>${ICONS.clock} ${nextLabel}</span>
-      <span>${ICONS.users} Sĩ số: ${c.enrolled}/${c.maxSlot}</span>
-    </div>
-    <div class="class-actions">
-      <button class="btn btn-sm btn-primary" data-detail="${c.id}">Xem chi tiết</button>
-      ${
-        pending
-          ? `<span class="hint-sm">Đã gửi yêu cầu hủy — chờ phụ huynh xác nhận</span>`
-          : cancellable
-            ? `<button class="btn btn-sm btn-danger" data-request-cancel="${c.id}">Gửi yêu cầu hủy môn</button>`
-            : `<span class="hint-sm">Đã có buổi học, không thể hủy</span>`
-      }
-    </div>
-  </div>`;
-};
-
-function renderClassDetail(el, student, classId) {
-  const cls = getClassById(classId);
-  if (!cls) return renderOverview(el, student);
-
-  const sessions = listSessionsByClass(classId).sort((a, b) => a.date.localeCompare(b.date));
-  const grades = listGradesByStudentInClass(classId, student.id);
-  const comments = listCommentsByStudent(classId, student.id);
-  const studentNames = listStudentsOfClass(classId);
-
-  el.innerHTML = `
-    <div class="detail-head">
-      <button class="btn btn-sm" data-back>${ICONS.back} Quay lại lịch học</button>
-      <div class="detail-title">
-        <h2 class="detail-name">${cls.className}</h2>
-        <span class="badge subject">${subjectLabel(cls.subject)}</span>
-        <span class="badge ${cls.status === "open" ? "open" : "closed"}">${cls.status === "open" ? "Đang mở" : "Đã đóng"}</span>
+            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
+              <div class="kpi-icon">${ICONS.paperclip}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${allMaterials.length}</span>
+                <span class="kpi-tit">Tài liệu học tập</span>
+                <span class="kpi-sub">Sẵn sàng để tải về ôn bài</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="info-grid">
-      <div class="info-box"><span class="info-label">Lịch học</span><span>${formatSchedule(cls.schedule)}</span></div>
-      <div class="info-box"><span class="info-label">Sĩ số</span><span>${studentNames.length}/${cls.maxSlot}</span></div>
-      <div class="info-box"><span class="info-label">Số buổi đã tạo</span><span>${sessions.length}</span></div>
-    </div>
+      <!-- 2. DIV THỜI KHÓA BIỂU TRONG TUẦN -->
+      <div class="overview-panel" id="overview-schedule">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#eef2ff;color:#4f46e5;">${ICONS.calendar}</span>
+            <div>
+              <h2 class="panel-title">Thời khóa biểu Học tập Hàng tuần</h2>
+              <span class="count-chip">${myClasses.length} môn đang học</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-student-schedule">
+              ${ICONS.eye}
+              <span>Xem chi tiết thời khóa biểu</span>
+            </button>
+          </div>
+        </div>
 
-    <div class="section-title">Bạn cùng lớp (${studentNames.length})</div>
-    <div class="panel">
-      ${
-        studentNames.length
-          ? `<div class="table-wrap"><table>
-              <thead><tr><th>#</th><th>Họ tên</th><th>Giới tính</th><th>Tài khoản</th></tr></thead>
-              <tbody>${studentNames
-                .map(
-                  (s, i) => `
-                    <tr>
-                      <td>${i + 1}</td>
-                      <td><strong>${s.fullName}</strong>${s.id === student.id ? ` <span class="badge active">Bạn</span>` : ""}</td>
-                      <td>${genderBadge(s)}</td>
-                      <td class="muted">@${s.username}</td>
-                    </tr>`
-                )
-                .join("")}</tbody>
-            </table></div>`
-          : `<div class="empty">Lớp chưa có học sinh nào.</div>`
-      }
-    </div>
-
-    <div class="section-title">Buổi học & tài liệu (${sessions.length})</div>
-    <div class="panel">
-      ${
-        sessions.length
-          ? sessions
+        <div style="padding: 20px 24px;">
+          <div class="schedule-grid-week">
+            ${daysWeek
               .map(
-                (s) => `
-                  <div class="session-block">
-                    <div class="row-item">
-                      <div>
-                        <strong class="row-title">${formatDate(s.date)} ${myAttBadge(s.id, student.id)}</strong>
-                        <span class="row-sub">${s.title || "Buổi học"}</span>
-                      </div>
-                      <span class="muted">${s.date >= todayStr() ? "Sắp tới" : "Đã diễn ra"}</span>
+                (d) => `
+                  <div class="schedule-day-card ${d.isToday ? "today" : ""}">
+                    <div class="schedule-day-head">
+                      <span class="schedule-day-name">${d.label}</span>
+                      ${d.isToday ? `<span class="badge active" style="font-size:10px;padding:1px 6px;">Hôm nay</span>` : ""}
+                      <span class="schedule-day-count">${d.slots.length} ca</span>
                     </div>
-                    ${(() => {
-                      const mats = listMaterialsBySession(s.id);
-                      return mats.length
-                        ? `<div class="mat-list">${mats.map((m) => `<span class="mat-chip">${ICONS.paperclip} ${m.fileName} ${materialLink(m)}</span>`).join("")}</div>`
-                        : `<div class="mat-empty">Buổi chưa có tài liệu</div>`;
-                    })()}
+                    <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
+                      ${
+                        d.slots.length
+                          ? d.slots
+                              .map(
+                                (s) => `
+                                  <div class="schedule-slot-item">
+                                    <span class="schedule-slot-title">${escapeHtml(s.className)}</span>
+                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${subjectLabel(s.subject)}</span>
+                                    <span class="schedule-slot-time">⏰ ${s.time}</span>
+                                    <span style="font-size:10.5px;color:var(--muted);">Thầy/Cô: ${escapeHtml(s.teacherName)}</span>
+                                  </div>`
+                              )
+                              .join("")
+                          : `<span class="muted" style="font-size:11px;margin:auto 0;text-align:center;">Nghỉ học</span>`
+                      }
+                    </div>
                   </div>`
               )
-              .join("")
-          : `<div class="empty">Lớp chưa có buổi học nào.</div>`
-      }
-    </div>
+              .join("")}
+          </div>
+        </div>
+      </div>
 
-    <div class="split mt-lg">
-      <div class="panel">
-        <div class="panel-head"><h2 class="panel-title">Điểm số của tôi</h2></div>
+      <!-- 3. DIV LỚP HỌC CỦA TÔI -->
+      <div class="overview-panel" id="overview-my-classes">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap">${ICONS.classes}</span>
+            <div>
+              <h2 class="panel-title">Danh sách Lớp học Đang tham gia</h2>
+              <span class="count-chip">${myClasses.length} lớp học</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-quick-add" id="btn-panel-enroll" style="cursor:pointer;">
+              ${ICONS.plus}
+              <span>Đăng ký thêm lớp</span>
+            </button>
+            <button class="btn-view-detail" id="btn-detail-student-classes">
+              ${ICONS.eye}
+              <span>Xem chi tiết các lớp</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          ${
+            myClasses.length
+              ? `<table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Tên lớp học</th>
+                      <th>Môn học</th>
+                      <th>Giáo viên dạy</th>
+                      <th>Lịch học cố định</th>
+                      <th>Điểm TB môn</th>
+                      <th style="text-align:right;">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${myClasses
+                      .map((c, i) => {
+                        const gr = classGradesMap.get(c.id);
+                        const hasPending = getPendingRequest(student.id, c.id);
+                        return `
+                          <tr>
+                            <td>${i + 1}</td>
+                            <td><strong>${escapeHtml(c.className)}</strong></td>
+                            <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                            <td>${escapeHtml(c.teacherName || "—")}</td>
+                            <td class="muted">${formatSchedule(c.schedule)}</td>
+                            <td><strong style="color:var(--brand-dark);">${gr ? gr.avg : "—"}</strong></td>
+                            <td class="actions" style="text-align:right;">
+                              <button class="btn btn-sm btn-primary" data-st-cls-detail="${c.id}" style="width:auto;padding:5px 12px;">
+                                Chi tiết môn học
+                              </button>
+                              ${
+                                hasPending
+                                  ? `<span class="badge late">Chờ PH duyệt hủy</span>`
+                                  : `<button class="btn btn-sm btn-danger" data-st-cancel-cls="${c.id}">Hủy môn</button>`
+                              }
+                            </td>
+                          </tr>`;
+                      })
+                      .join("")}
+                  </tbody>
+                </table>`
+              : `<div class="empty" style="padding:28px;text-align:center;color:var(--muted);">
+                  Bạn chưa đăng ký môn học nào. Hãy tham khảo danh sách lớp bên dưới để đăng ký ngay.
+                </div>`
+          }
+        </div>
+      </div>
+
+      <!-- 4. DIV BẢNG ĐIỂM & NHẬN XÉT -->
+      <div class="overview-panel" id="overview-grades">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#fef3c7;color:#b45309;">${ICONS.edit}</span>
+            <div>
+              <h2 class="panel-title">Bảng điểm & Nhận xét của Giáo viên</h2>
+              <span class="count-chip">ĐTB Chung: ${overallAvg}</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-student-grades">
+              ${ICONS.eye}
+              <span>Xem chi tiết bảng điểm</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 20px 24px;">
+          ${
+            myClasses.length
+              ? `<div style="display:flex;flex-direction:column;gap:14px;">
+                  ${myClasses
+                    .map((c) => {
+                      const gr = classGradesMap.get(c.id);
+                      const comments = myComments.filter((cm) => cm.classId === c.id);
+                      const latestCm = comments.length ? comments[comments.length - 1].content : "Chưa có nhận xét cho môn này.";
+
+                      return `
+                        <div class="grade-matrix-card">
+                          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                              <span class="badge subject">${subjectLabel(c.subject)}</span>
+                              <strong style="font-size:15px;color:var(--brand-ink);">${escapeHtml(c.className)}</strong>
+                              <span class="muted" style="font-size:12.5px;">(Thầy/Cô ${escapeHtml(c.teacherName)})</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                              <span style="font-size:12.5px;color:var(--muted);font-weight:700;">ĐTB Môn:</span>
+                              <span class="grade-score-pill ${gr && gr.avg !== '—' && parseFloat(gr.avg) >= 8 ? 'high' : ''}">
+                                ${gr ? gr.avg : '—'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 15 PHÚT (HS 1)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.g15.length ? gr.g15.join(", ") : "—"}</strong>
+                            </div>
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 1 TIẾT (HS 2)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.g45.length ? gr.g45.join(", ") : "—"}</strong>
+                            </div>
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">THI HỌC KỲ (HS 3)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.gSem.length ? gr.gSem.join(", ") : "—"}</strong>
+                            </div>
+                          </div>
+
+                          <div class="comment-bubble">
+                            <strong>Lời phê của Thầy/Cô:</strong> ${escapeHtml(latestCm)}
+                          </div>
+                        </div>`;
+                    })
+                    .join("")}
+                </div>`
+              : `<div class="empty">Chưa có dữ liệu điểm môn học.</div>`
+          }
+        </div>
+      </div>
+
+      <!-- 5. DIV TÀI LIỆU HỌC TẬP -->
+      <div class="overview-panel" id="overview-materials">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#f4efff;color:#6a1bff;">${ICONS.paperclip}</span>
+            <div>
+              <h2 class="panel-title">Tài liệu & Bài tập Các môn học</h2>
+              <span class="count-chip">${allMaterials.length} file tài liệu</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-student-materials">
+              ${ICONS.eye}
+              <span>Xem tất cả tài liệu</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 20px 24px;">
+          ${
+            allMaterials.length
+              ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+                  ${allMaterials.slice(0, 6).map(
+                    (m) => `
+                      <div class="material-file-card">
+                        <div style="min-width:0;">
+                          <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.fileName)}</strong>
+                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${formatDate(m.date)}</span>
+                        </div>
+                        <div>${materialLink(m)}</div>
+                      </div>`
+                  ).join("")}
+                </div>`
+              : `<div class="empty" style="padding:24px;text-align:center;color:var(--muted);">
+                  Các lớp học hiện chưa tải lên tài liệu mới.
+                </div>`
+          }
+        </div>
+      </div>
+
+      <!-- 6. DIV ĐĂNG KÝ LỚP HỌC MỚI -->
+      <div class="overview-panel" id="overview-enroll">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#e6f8f0;color:#0d8a5f;">${ICONS.classes}</span>
+            <div>
+              <h2 class="panel-title">Các Lớp học Đang Mở Tuyển sinh</h2>
+              <span class="count-chip">${openClasses.length} lớp học</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-open-classes">
+              ${ICONS.eye}
+              <span>Xem chi tiết các lớp</span>
+            </button>
+          </div>
+        </div>
+
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Loại</th><th>Điểm</th><th>Ghi chú</th></tr></thead>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tên lớp học</th>
+                <th>Môn</th>
+                <th>Giáo viên phụ trách</th>
+                <th>Sĩ số lớp</th>
+                <th>Lịch học cố định</th>
+                <th style="text-align:right;">Thao tác</th>
+              </tr>
+            </thead>
             <tbody>
-              ${
-                grades.length
-                  ? grades.map((g) => `<tr><td>${g.type}</td><td><strong>${g.score}</strong></td><td class="muted">${g.note || "—"}</td></tr>`).join("")
-                  : `<tr><td colspan="3" class="empty">Chưa có điểm</td></tr>`
-              }
+              ${openClasses
+                .map(
+                  (c, idx) => `
+                    <tr>
+                      <td>${idx + 1}</td>
+                      <td><strong>${escapeHtml(c.className)}</strong></td>
+                      <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                      <td>${escapeHtml(c.teacherName || "—")}</td>
+                      <td>
+                        <span class="slot-cell">
+                          <span class="slot-text">${c.enrolled}/${c.maxSlot} (${pct(c.enrolled, c.maxSlot)}%)</span>
+                          <span class="slot-bar"><i style="width:${pct(c.enrolled, c.maxSlot)}%"></i></span>
+                        </span>
+                      </td>
+                      <td class="muted">${formatSchedule(c.schedule)}</td>
+                      <td class="actions" style="text-align:right;">
+                        ${
+                          c.isEnrolled
+                            ? `<span class="badge active">Đang theo học</span>`
+                            : c.enrolled >= c.maxSlot
+                            ? `<span class="badge closed">Hết chỗ</span>`
+                            : `<button class="btn btn-sm btn-primary" data-st-enroll="${c.id}" style="width:auto;padding:5px 14px;">
+                                Đăng ký ngay
+                              </button>`
+                        }
+                      </td>
+                    </tr>`
+                )
+                .join("")}
             </tbody>
           </table>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><h2 class="panel-title">Nhận xét của giáo viên</h2></div>
-        <div class="comment-list">
-          ${
-            comments.length
-              ? comments
-                  .map((cm) => `<div class="comment-item"><span class="comment-head"><b>Giáo viên</b><small>${formatDate(cm.createdAt ? cm.createdAt.slice(0, 10) : "")}</small></span><p>${cm.content}</p></div>`)
-                  .join("")
-              : `<div class="empty">Chưa có nhận xét nào.</div>`
-          }
+    </div>
+  `;
+
+  // Jump bar
+  setupStudentJumpBar(el);
+
+  // Setup detail modals
+  setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate });
+
+  // Setup actions (enroll, cancel)
+  setupStudentActions(el, student);
+}
+
+function setupStudentJumpBar(el) {
+  const links = el.querySelectorAll(".jump-pill");
+  links.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const targetId = link.getAttribute("href").replace("#", "");
+      const targetEl = el.querySelector(`#${targetId}`);
+      if (targetEl) {
+        links.forEach((l) => l.classList.remove("active"));
+        link.classList.add("active");
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate }) {
+  // 1. Chi tiết chỉ số học tập
+  el.querySelector("#btn-detail-student-kpi")?.addEventListener("click", () => {
+    openModal({
+      title: "Hồ sơ Học tập Toàn diện của Bạn",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          ${infoRow("Học sinh", escapeHtml(student.fullName))}
+          ${infoRow("Mã học sinh", student.id)}
+          ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
+          ${infoRow("Tỷ lệ chuyên cần", `${attendanceRate}%`)}
+          ${infoRow("Số lượng môn học đang tham gia", `${myClasses.length} lớp học`)}
+          ${infoRow("Số tài liệu bài học có sẵn", `${allMaterials.length} file`)}
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đã hiểu</button>`,
+    });
+  });
+
+  // 2. Chi tiết thời khóa biểu
+  el.querySelector("#btn-detail-student-schedule")?.addEventListener("click", () => {
+    openModal({
+      title: "Thời khóa biểu Tuần Toàn diện",
+      size: "modal-xl",
+      body: `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Thứ</th><th>Môn học</th><th>Lớp</th><th>Khung giờ học</th><th>Giáo viên</th></tr>
+            </thead>
+            <tbody>
+              ${[2, 3, 4, 5, 6, 7, 8].flatMap((day) => {
+                const label = WEEKDAYS.find((w) => w.value === day)?.label || `T${day}`;
+                const slots = [];
+                myClasses.forEach((c) => {
+                  (c.schedule || []).forEach((s) => {
+                    if (s.dayOfWeek === day) {
+                      slots.push({
+                        dayLabel: label,
+                        subject: c.subject,
+                        className: c.className,
+                        time: `${s.start}–${s.end}`,
+                        teacher: c.teacherName || "Giáo viên",
+                      });
+                    }
+                  });
+                });
+                return slots;
+              }).map((s) => `
+                <tr>
+                  <td><strong>${s.dayLabel}</strong></td>
+                  <td><span class="badge subject">${subjectLabel(s.subject)}</span></td>
+                  <td><strong>${escapeHtml(s.className)}</strong></td>
+                  <td>${s.time}</td>
+                  <td>${escapeHtml(s.teacher)}</td>
+                </tr>
+              `).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Chưa có lịch học nào.</td></tr>`}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 3. Chi tiết các lớp
+  el.querySelector("#btn-detail-student-classes")?.addEventListener("click", () => {
+    openModal({
+      title: "Bảng Chi tiết Lớp học Đang tham gia",
+      size: "modal-lg",
+      body: `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Tên lớp</th><th>Môn</th><th>Giáo viên</th><th>Sĩ số</th><th>Lịch học</th></tr>
+            </thead>
+            <tbody>
+              ${myClasses.map((c, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td><strong>${escapeHtml(c.className)}</strong></td>
+                  <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                  <td>${escapeHtml(c.teacherName || "—")}</td>
+                  <td>${c.enrolled}/${c.maxSlot}</td>
+                  <td class="muted">${formatSchedule(c.schedule)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 4. Chi tiết bảng điểm
+  el.querySelector("#btn-detail-student-grades")?.addEventListener("click", () => {
+    openModal({
+      title: "Bảng điểm Tổng thể & Xếp loại",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <p class="muted">Bảng điểm tổng kết các bài kiểm tra 15 phút, 1 tiết và thi học kỳ.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Môn học</th><th>Lớp</th><th>Điểm 15p</th><th>Điểm 1T</th><th>Học kỳ</th><th>ĐTB Môn</th></tr>
+              </thead>
+              <tbody>
+                ${myClasses.map((c) => {
+                  const grades = listGradesByStudentInClass(c.id, student.id);
+                  const g15 = grades.filter((g) => g.type === "15m").map((g) => g.score);
+                  const g45 = grades.filter((g) => g.type === "45m").map((g) => g.score);
+                  const gSem = grades.filter((g) => g.type === "semester").map((g) => g.score);
+                  let tot = 0; let coe = 0;
+                  g15.forEach((s) => { tot += s * 1; coe += 1; });
+                  g45.forEach((s) => { tot += s * 2; coe += 2; });
+                  gSem.forEach((s) => { tot += s * 3; coe += 3; });
+                  const avg = coe > 0 ? (tot / coe).toFixed(1) : "—";
+                  return `
+                    <tr>
+                      <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                      <td><strong>${escapeHtml(c.className)}</strong></td>
+                      <td>${g15.join(", ") || "—"}</td>
+                      <td>${g45.join(", ") || "—"}</td>
+                      <td>${gSem.join(", ") || "—"}</td>
+                      <td><strong style="color:var(--brand-dark);">${avg}</strong></td>
+                    </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 5. Chi tiết tài liệu
+  el.querySelector("#btn-detail-student-materials")?.addEventListener("click", () => {
+    openModal({
+      title: "Thư viện Tài liệu Bài học Toàn diện",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;">
+          ${allMaterials.map((m) => `
+            <div class="material-file-card">
+              <div>
+                <strong>${escapeHtml(m.fileName)}</strong>
+                <span class="muted" style="font-size:12px;display:block;">${escapeHtml(m.className)} · Buổi: ${escapeHtml(m.sessionTitle || '')} (${formatDate(m.date)})</span>
+              </div>
+              <div>${materialLink(m)}</div>
+            </div>
+          `).join("") || `<div class="empty">Chưa có tài liệu nào.</div>`}
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 6. Chi tiết các lớp đang mở
+  el.querySelector("#btn-detail-open-classes")?.addEventListener("click", () => {
+    openModal({
+      title: "Danh sách Lớp học Đang Mở Tuyển sinh của Trung tâm",
+      size: "modal-xl",
+      body: `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Tên lớp</th><th>Môn</th><th>Giáo viên</th><th>Sĩ số</th><th>Lịch học</th></tr>
+            </thead>
+            <tbody>
+              ${openClasses.map((c, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td><strong>${escapeHtml(c.className)}</strong></td>
+                  <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                  <td>${escapeHtml(c.teacherName || "—")}</td>
+                  <td>${c.enrolled}/${c.maxSlot}</td>
+                  <td class="muted">${formatSchedule(c.schedule)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+}
+
+function setupStudentActions(el, student) {
+  // Tự động kéo mượt xuống phần Các lớp học đang mở tuyển sinh
+  const scrollToEnroll = (e) => {
+    e?.preventDefault();
+    const targetEl = el.querySelector("#overview-enroll");
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.querySelectorAll(".jump-pill").forEach((l) => {
+        l.classList.toggle("active", l.getAttribute("href") === "#overview-enroll");
+      });
+      targetEl.style.transition = "box-shadow 0.3s ease, border-color 0.3s ease";
+      targetEl.style.borderColor = "#863bff";
+      targetEl.style.boxShadow = "0 0 0 4px rgba(134, 59, 255, 0.25)";
+      setTimeout(() => {
+        targetEl.style.borderColor = "";
+        targetEl.style.boxShadow = "";
+      }, 1600);
+    }
+  };
+
+  el.querySelector("#btn-banner-enroll")?.addEventListener("click", scrollToEnroll);
+  el.querySelector("#btn-panel-enroll")?.addEventListener("click", scrollToEnroll);
+
+  // Đăng ký lớp
+  el.querySelectorAll("[data-st-enroll]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const classId = btn.dataset.stEnroll;
+      try {
+        enroll(student.id, classId);
+        renderStudentOverviewPage(el, student);
+        flash(el, "Đăng ký môn học thành công!");
+      } catch (e) {
+        flash(el, e.message, "error");
+      }
+    })
+  );
+
+  // Chi tiết môn học
+  el.querySelectorAll("[data-st-cls-detail]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const cls = getClassById(btn.dataset.stClsDetail);
+      if (cls) openStudentClassModal(cls, student);
+    })
+  );
+
+  // Hủy đăng ký lớp (gửi yêu cầu cho phụ huynh duyệt)
+  el.querySelectorAll("[data-st-cancel-cls]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const classId = btn.dataset.stCancelCls;
+      const cls = getClassById(classId);
+      if (!cls) return;
+
+      openModal({
+        title: "Xác nhận gửi yêu cầu hủy môn học",
+        body: `
+          <p>Bạn chắc chắn muốn gửi yêu cầu hủy môn <strong>${escapeHtml(cls.className)}</strong>?</p>
+          <p class="muted">Phụ huynh của bạn sẽ nhận được thông báo và cần phê duyệt để lớp học chính thức được hủy khỏi danh sách.</p>`,
+        foot: `
+          <button class="btn" data-close>Đóng</button>
+          <button class="btn btn-danger" id="confirm-cancel-req">Gửi yêu cầu hủy</button>`,
+        onMount: (root, close) => {
+          root.querySelector("#confirm-cancel-req")?.addEventListener("click", () => {
+            try {
+              requestCancelClass(student.id, classId);
+              close();
+              renderStudentOverviewPage(el, student);
+              flash(el, "Đã gửi yêu cầu hủy môn tới phụ huynh để xác nhận.");
+            } catch (e) {
+              close();
+              flash(el, e.message, "error");
+            }
+          });
+        },
+      });
+    })
+  );
+}
+
+function openStudentClassModal(cls, student) {
+  const classmates = listStudentsOfClass(cls.id);
+  const sessions = listSessionsByClass(cls.id);
+  const grades = listGradesByStudentInClass(cls.id, student.id);
+
+  openModal({
+    title: `Chi tiết Môn học · ${escapeHtml(cls.className)}`,
+    size: "modal-lg",
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="roster-summary">
+          <div class="roster-chip">
+            <span class="roster-chip-k">Bộ môn</span>
+            <span class="roster-chip-v"><span class="badge subject">${subjectLabel(cls.subject)}</span></span>
+          </div>
+          <div class="roster-chip">
+            <span class="roster-chip-k">Giáo viên phụ trách</span>
+            <span class="roster-chip-v">${escapeHtml(cls.teacherName || "—")}</span>
+          </div>
+          <div class="roster-chip">
+            <span class="roster-chip-k">Sĩ số lớp</span>
+            <span class="roster-chip-v">${cls.enrolled}/${cls.maxSlot} HS</span>
+          </div>
         </div>
-      </div>
-    </div>
-  `;
 
-  el.querySelector("[data-back]").addEventListener("click", () => {
-    renderOverview(el, student);
+        ${infoRow("Lịch học định kỳ", formatSchedule(cls.schedule))}
+        ${infoRow("Số buổi học đã diễn ra", `${sessions.length} buổi`)}
+
+        <h4 style="margin:10px 0 4px;font-size:14.5px;color:var(--brand-ink);">
+          Điểm kiểm tra của bạn ở môn này
+        </h4>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="padding:10px 14px;background:#f8f7fd;border-radius:10px;border:1px solid var(--line);">
+            <span class="muted" style="font-size:11px;font-weight:700;">15 PHÚT:</span>
+            <strong>${grades.filter((g) => g.type === "15m").map((g) => g.score).join(", ") || "Chưa có"}</strong>
+          </div>
+          <div style="padding:10px 14px;background:#f8f7fd;border-radius:10px;border:1px solid var(--line);">
+            <span class="muted" style="font-size:11px;font-weight:700;">1 TIẾT:</span>
+            <strong>${grades.filter((g) => g.type === "45m").map((g) => g.score).join(", ") || "Chưa có"}</strong>
+          </div>
+          <div style="padding:10px 14px;background:#f8f7fd;border-radius:10px;border:1px solid var(--line);">
+            <span class="muted" style="font-size:11px;font-weight:700;">HỌC KỲ:</span>
+            <strong>${grades.filter((g) => g.type === "semester").map((g) => g.score).join(", ") || "Chưa có"}</strong>
+          </div>
+        </div>
+
+        <h4 style="margin:10px 0 4px;font-size:14.5px;color:var(--brand-ink);">
+          Danh sách Bạn cùng lớp (${classmates.length} bạn)
+        </h4>
+        <div style="max-height:180px;overflow-y:auto;background:#faf9fe;padding:10px 14px;border-radius:10px;border:1px solid var(--line);">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${classmates.map((st) => `
+              <span class="badge ${st.id === student.id ? 'active' : 'student'}" style="font-size:12px;">
+                ${escapeHtml(st.fullName)} ${st.id === student.id ? '(Bạn)' : ''}
+              </span>
+            `).join("")}
+          </div>
+        </div>
+      </div>`,
+    foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
   });
 }
-
-function renderEnroll(el, student) {
-  const d = getStudentOverview(student.id);
-
-  const flash = (msg) => {
-    const box = el.querySelector("#enroll-message");
-    box.textContent = msg;
-    box.hidden = false;
-    setTimeout(() => (box.hidden = true), 2500);
-  };
-
-  el.innerHTML = `
-    <div class="panel mb-lg enroll-filter">
-      <label class="enroll-filter-label">Lọc theo môn:</label>
-      <select id="subject-filter">
-        <option value="">Tất cả môn</option>
-        ${SUBJECTS.map((s) => `<option value="${s}">${subjectLabel(s)}</option>`).join("")}
-      </select>
-    </div>
-
-    <div class="section-title">Lớp đang mở để đăng ký</div>
-    <p id="enroll-message" class="form-error" role="alert" hidden></p>
-    <div id="open-class-wrap">
-      ${renderOpenList(d.openClasses, "", student.id)}
-    </div>
-  `;
-
-  el.querySelector("#subject-filter").addEventListener("change", (e) => {
-    const filter = e.target.value;
-    el.querySelector("#open-class-wrap").innerHTML = renderOpenList(d.openClasses, filter, student.id);
-    bindOpenList(el, student);
-  });
-
-  bindOpenList(el, student);
-}
-
-function renderOpenList(classes, subject, studentId) {
-  const list = subject ? classes.filter((c) => c.subject === subject) : classes;
-  if (!list.length) {
-    return `<div class="empty panel">Không có lớp phù hợp. Hãy thử lọc môn khác.</div>`;
-  }
-  return `<div class="class-grid">${list.map((c) => openClassCard(c, studentId)).join("")}</div>`;
-}
-
-function bindOpenList(el, student) {
-  const flash = (msg) => {
-    const box = el.querySelector("#enroll-message");
-    box.textContent = msg;
-    box.hidden = false;
-    setTimeout(() => (box.hidden = true), 2500);
-  };
-
-  el.querySelectorAll("[data-enroll]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      try {
-        enroll(student.id, btn.dataset.enroll);
-        renderEnroll(el, student);
-      } catch (err) {
-        flash(err.message);
-      }
-    })
-  );
-
-  el.querySelectorAll("[data-request-cancel]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      try {
-        requestCancelClass(student.id, btn.dataset.requestCancel);
-        renderEnroll(el, student);
-      } catch (err) {
-        flash(err.message);
-      }
-    })
-  );
-}
-
-const openClassCard = (c, studentId) => {
-  const pending = getPendingRequest(studentId, c.id);
-  return `
-  <div class="class-card ${c.isEnrolled ? "enrolled" : ""}">
-    <div class="class-top">
-      <span class="badge subject">${subjectLabel(c.subject)}</span>
-      ${c.isEnrolled ? `<span class="badge active">Đang học</span>` : `<span class="badge open">Còn chỗ</span>`}
-    </div>
-    <div class="class-name">${c.className}</div>
-    <div class="class-meta">
-      <span>${ICONS.calendar} ${formatSchedule(c.schedule)}</span>
-      <span>${ICONS.users} Đã ghi danh: ${c.enrolled}/${c.maxSlot}</span>
-    </div>
-    <div class="class-actions">
-      ${
-        pending
-          ? `<span class="hint-sm">Đã gửi yêu cầu hủy — chờ phụ huynh xác nhận</span>`
-          : c.isEnrolled
-            ? `<button class="btn btn-sm btn-danger" data-request-cancel="${c.id}">Gửi yêu cầu hủy môn</button>`
-            : c.enrolled >= c.maxSlot
-              ? `<button class="btn btn-sm" disabled>Đã đủ chỗ</button>`
-              : `<button class="btn btn-sm btn-primary" data-enroll="${c.id}">Đăng ký</button>`
-      }
-    </div>
-  </div>`;
-};

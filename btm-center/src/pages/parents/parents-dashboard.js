@@ -1,11 +1,6 @@
-// pages/parents/parents-dashboard.js — Dashboard phụ huynh.
-// Phụ huynh CHỈ xem được dữ liệu của đúng học sinh đã liên kết qua mã học sinh.
-// 3 trường dữ liệu: Lịch học của con (lịch dạng calendar) · Bảng điểm & Nhận xét theo môn · Thông báo.
-// Không sao chép, không tự đăng ký/hủy lớp: mọi thứ đọc chung entity với học sinh
-// (enrollments / sessions / attendance / grades / comments / materials) theo studentId.
-
+// pages/parents/parents-dashboard.js — Redesign Toàn diện: Trang Tổng quan Phụ huynh Hợp nhất (Parent Role)
 import { Session } from "../../core/session.js";
-import { renderShell, ICONS, formatSchedule } from "../shell.js";
+import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
 import { getLinkedStudent } from "../../modules/parents/parents.service.js";
 import { escapeHtml } from "../../core/html.js";
 import {
@@ -13,975 +8,816 @@ import {
   decideCancelRequest,
 } from "../../modules/notifications/notifications.service.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
-import { listAttendanceBySession } from "../../modules/sessions/sessions.service.js";
+import {
+  listSessionsByClass,
+  listAttendanceBySession,
+  listAttendanceOfStudent,
+} from "../../modules/sessions/sessions.service.js";
 import { listGradesByStudentInClass } from "../../modules/grades/grades.service.js";
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
 import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { listUsers } from "../../modules/users/users.service.js";
+import { getClassById } from "../../modules/classes/classes.service.js";
+import { DB } from "../../core/db.js";
 import {
   subjectLabel,
   formatDate,
   todayStr,
-  GRADE_TYPES,
   WEEKDAYS,
   ATTENDANCE_LABELS,
 } from "../../data/constants.js";
 
-const statCard = (icon, value, label) => `
-  <div class="stat-card">
-    <span class="stat-icon">${icon}</span>
-    <div>
-      <div class="stat-value">${value}</div>
-      <div class="stat-label">${label}</div>
-    </div>
-  </div>`;
+const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
 
 const materialLink = (m) => {
-  const isUrl = String(m.fileData).startsWith("http");
+  const isUrl = String(m.fileData || "").startsWith("http");
   const target = isUrl
     ? m.fileData
-    : m.fileData.startsWith("data:")
-      ? m.fileData
-      : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
+    : String(m.fileData || "").startsWith("data:")
+    ? m.fileData
+    : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
   return isUrl
-    ? `<a class="btn btn-sm" href="${target}" target="_blank" rel="noopener">${ICONS.download} Mở</a>`
-    : `<a class="btn btn-sm" href="${target}" download="${m.fileName}">${ICONS.download} Tải về</a>`;
+    ? `<a class="btn btn-sm btn-primary" href="${target}" target="_blank" rel="noopener" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`
+    : `<a class="btn btn-sm btn-primary" href="${target}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
 };
 
-const attBadge = (sessionId, studentId) => {
-  const rec = listAttendanceBySession(sessionId).find((a) => a.studentId === studentId);
-  if (!rec) return `<span class="badge inactive">Chưa điểm danh</span>`;
-  const cls = rec.status === "present" ? "active" : rec.status === "late" ? "late" : "closed";
-  return `<span class="badge ${cls}">${ATTENDANCE_LABELS[rec.status]}</span>`;
-};
-
-// ------------------------------------------------------------------ tiện ích ngày
-const pad2 = (n) => String(n).padStart(2, "0");
-
-function parseIso(iso) {
-  const [y, m, d] = String(iso).split("-").map(Number);
-  return new Date(y, m - 1, d);
+function flash(el, message, type = "success") {
+  let box = el.querySelector("#parent-flash");
+  if (!box) {
+    box = document.createElement("p");
+    box.id = "parent-flash";
+    box.className = "admin-flash";
+    el.prepend(box);
+  }
+  box.textContent = message;
+  box.dataset.type = type;
+  box.hidden = false;
+  window.clearTimeout(box._timer);
+  box._timer = window.setTimeout(() => (box.hidden = true), 3200);
 }
 
-const toIso = (date) =>
-  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+function openModal({ title, body, foot = "", size = "", onMount }) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal ${size}" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 class="modal-title">${title}</h3>
+        <button class="icon-btn" data-close aria-label="Đóng">${ICONS.close}</button>
+      </div>
+      <div class="modal-body">${body}</div>
+      ${foot ? `<div class="modal-foot">${foot}</div>` : ""}
+    </div>`;
+  document.body.appendChild(overlay);
 
-// dayOfWeek theo WEEKDAYS: Thứ 2 = 2 … Thứ 7 = 7, Chủ nhật = 8.
-const dayOfWeekOf = (date) => (date.getDay() === 0 ? 8 : date.getDay() + 1);
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
 
-const weekdayLabel = (date) =>
-  WEEKDAYS.find((w) => w.value === dayOfWeekOf(date))?.label || "";
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
 
-// Khung 6 tuần (42 ô) bắt đầu từ Thứ 2 của tháng cần hiển thị.
-function monthCells(year, month) {
-  const first = new Date(year, month, 1);
-  const offset = (first.getDay() + 6) % 7; // thứ 2 = đầu tuần
-  const start = new Date(year, month, 1 - offset);
-  return Array.from({ length: 42 }, (_, i) =>
-    new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
+  document.addEventListener("keydown", onKey);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelectorAll("[data-close]").forEach((btn) =>
+    btn.addEventListener("click", close)
   );
+  onMount?.(overlay, close);
+  return close;
 }
 
-// Khung giờ (start–end) của lớp cho một ngày cụ thể, khớp theo ngày trong tuần.
-function slotOfClass(cls, iso) {
-  const dow = dayOfWeekOf(parseIso(iso));
-  return (cls.schedule || []).find((s) => s.dayOfWeek === dow) || null;
-}
+const infoRow = (key, value) => `
+  <div class="modal-info">
+    <span class="k">${key}</span>
+    <span class="v">${value}</span>
+  </div>`;
 
-function teacherName(teacherId) {
-  if (!teacherId) return "Chưa phân công";
-  return listUsers("teacher").find((u) => u.id === teacherId)?.fullName || "—";
-}
-
+// =============================================================================
+// KHỞI TẠO TRANG PHỤ HUYNH: DUY NHẤT 1 TAB "TỔNG QUAN"
+// =============================================================================
 export function renderParentsDashboard(container) {
   const parent = Session.getCurrentUser();
   const student = getLinkedStudent(parent.id);
-  const ctx = {
-    parent,
-    student,
-    d: student ? getStudentOverview(student.id) : null,
-  };
 
   const tabs = [
-    { id: "schedule", label: "Lịch học của con", icon: ICONS.calendar, active: true, render: renderSchedule },
-    { id: "grades", label: "Bảng điểm & Nhận xét", icon: ICONS.school, active: false, render: renderGrades },
-    { id: "notices", label: "Thông báo", icon: ICONS.bell, active: false, render: renderNotices },
+    {
+      id: "overview",
+      label: "Tổng quan",
+      icon: ICONS.grid,
+      active: true,
+      render: (content) => renderParentOverviewPage(content, parent, student),
+    },
   ];
 
-  renderShell(container, { title: "Lịch học của con", items: tabs });
+  renderShell(container, { title: "Tổng quan Theo dõi Học tập", items: tabs });
   const content = container.querySelector("#tab-content");
 
-  container
-    .querySelectorAll(".nav-item[data-tab]")
-    .forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+  renderParentOverviewPage(content, parent, student);
+}
 
-  function switchTab(id) {
-    container
-      .querySelectorAll(".nav-item[data-tab]")
-      .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-    container.querySelector("#page-title").textContent = tabs.find((t) => t.id === id).label;
-    tabs.find((t) => t.id === id).render(content, ctx, switchTab);
-  }
-
-  if (!ctx.d) {
-    content.innerHTML = `<div class="empty panel">Tài khoản phụ huynh chưa liên kết với học sinh nào. Vui lòng liên hệ giáo viên hoặc quản trị viên để được liên kết lại.</div>`;
+// =============================================================================
+// TRANG TỔNG QUAN PHỤ HUYNH (HỢP NHẤT TOÀN BỘ CÁC KHỐI THÔNG TIN CỦA CON)
+// =============================================================================
+function renderParentOverviewPage(el, parent, student) {
+  if (!student) {
+    el.innerHTML = `
+      <div class="panel" style="padding:32px;text-align:center;">
+        <h2 style="color:var(--brand-ink);">Tài khoản chưa liên kết học sinh</h2>
+        <p class="muted">Tài khoản phụ huynh của bạn chưa được liên kết với mã học sinh nào. Vui lòng liên hệ ban quản trị để hỗ trợ.</p>
+      </div>`;
     return;
   }
 
-  switchTab("schedule");
-}
-
-// ------------------------------------------------------------------ trường lịch học của con
-// Lịch dạng calendar theo tháng: mỗi ngày có buổi học là một ô bấm được,
-// bấm vào để xem chi tiết: giáo viên giảng dạy + giờ bắt đầu / kết thúc buổi học.
-function renderSchedule(el, ctx) {
-  ensureModalStyles();
-  const { student, d } = ctx;
-  const now = new Date();
-  const today = todayStr();
-
-  // Ghép toàn bộ buổi học của các lớp con đang học theo ngày.
-  const byDate = new Map();
-  d.myClasses.forEach((c) => {
-    (c.sessions || []).forEach((s) => {
-      if (!byDate.has(s.date)) byDate.set(s.date, []);
-      byDate.get(s.date).push({ cls: c, session: s });
-    });
-  });
-  byDate.forEach((list) =>
-    list.sort((a, b) => {
-      const start = (it) => slotOfClass(it.cls, it.session.date)?.start || "99:99";
-      return start(a).localeCompare(start(b));
-    })
+  const studentData = getStudentOverview(student.id);
+  const myClasses = studentData.myClasses;
+  const notifications = buildStudentNotifications(student.id);
+  const pendingCancelRequests = notifications.filter(
+    (n) => n.kind === "cancel-request" && n.request?.status === "pending"
   );
 
-  const cal =
-    ctx.cal ||
-    (ctx.cal = {
-      y: now.getFullYear(),
-      m: now.getMonth(),
-      selected: byDate.has(today) ? today : null,
+  // Điểm số của con
+  let totalScore = 0;
+  let totalCoeff = 0;
+  const classGradesMap = new Map();
+  myClasses.forEach((c) => {
+    const grades = listGradesByStudentInClass(c.id, student.id);
+    const g15 = grades.filter((g) => g.type === "15m").map((g) => g.score);
+    const g45 = grades.filter((g) => g.type === "45m").map((g) => g.score);
+    const gSem = grades.filter((g) => g.type === "semester").map((g) => g.score);
+
+    let clsScore = 0;
+    let clsCoeff = 0;
+    g15.forEach((s) => { clsScore += s * 1; clsCoeff += 1; totalScore += s * 1; totalCoeff += 1; });
+    g45.forEach((s) => { clsScore += s * 2; clsCoeff += 2; totalScore += s * 2; totalCoeff += 2; });
+    gSem.forEach((s) => { clsScore += s * 3; clsCoeff += 3; totalScore += s * 3; totalCoeff += 3; });
+    const avg = clsCoeff > 0 ? (clsScore / clsCoeff).toFixed(1) : "—";
+    classGradesMap.set(c.id, { g15, g45, gSem, avg });
+  });
+  const overallAvg = totalCoeff > 0 ? (totalScore / totalCoeff).toFixed(1) : "—";
+
+  // Chuyên cần của con
+  const attendanceList = listAttendanceOfStudent(student.id);
+  const attPresentCount = attendanceList.filter((a) => a.status === "present" || a.status === "late").length;
+  const attRate = attendanceList.length ? pct(attPresentCount, attendanceList.length) : 100;
+
+  // Lịch học trong tuần của con
+  const currentDow = new Date().getDay() === 0 ? 8 : new Date().getDay() + 1;
+  const daysWeek = [2, 3, 4, 5, 6, 7, 8].map((day) => {
+    const label = WEEKDAYS.find((w) => w.value === day)?.label || `T${day}`;
+    const slots = [];
+    myClasses.forEach((c) => {
+      (c.schedule || []).forEach((s) => {
+        if (s.dayOfWeek === day) {
+          slots.push({
+            className: c.className,
+            subject: c.subject,
+            time: `${s.start}–${s.end}`,
+            teacherName: c.teacherName || "Giáo viên",
+          });
+        }
+      });
     });
+    return { day, label, slots, isToday: day === currentDow };
+  });
 
-  const monthLabel = `Tháng ${cal.m + 1}/${cal.y}`;
-  const cells = monthCells(cal.y, cal.m);
+  // Tài liệu của các môn con đang học
+  const allMaterials = [];
+  myClasses.forEach((c) => {
+    listSessionsByClass(c.id).forEach((s) => {
+      listMaterialsBySession(s.id).forEach((m) => {
+        allMaterials.push({ ...m, sessionTitle: s.title, date: s.date, className: c.className });
+      });
+    });
+  });
 
-  const cellHtml = cells
-    .map((date) => {
-      const iso = toIso(date);
-      const items = byDate.get(iso) || [];
-      const cls = ["cal-cell"];
-      if (date.getMonth() !== cal.m) cls.push("cal-out");
-      if (items.length) cls.push("cal-has");
-      if (iso === today) cls.push("cal-today");
-      if (iso === cal.selected) cls.push("cal-selected");
+  // Nhận xét của giáo viên về con
+  const comments = listCommentsByStudent(student.id);
 
-      const chips = items
-        .slice(0, 2)
-        .map((it) => {
-          const slot = slotOfClass(it.cls, iso);
-          const timeText = slot ? ` ${slot.start}` : "";
-          return `<button type="button" class="cal-chip-btn" data-session-id="${it.session.id}" data-day="${iso}" title="Xem chi tiết: ${escapeHtml(it.cls.className)} · ${subjectLabel(it.cls.subject)}${slot ? ` (${slot.start} – ${slot.end})` : ""}">
-            ${subjectLabel(it.cls.subject)}${timeText}
-          </button>`;
-        })
-        .join("");
-      const more =
-        items.length > 2 ? `<span class="cal-more">+${items.length - 2} buổi</span>` : "";
-      const inner = `<span class="cal-num">${date.getDate()}</span>${chips}${more}`;
-
-      return items.length
-        ? `<div class="${cls.join(" ")}" data-day="${iso}" title="Ngày ${formatDate(iso)}: ${items.length} buổi học (bấm để xem chi tiết)">${inner}</div>`
-        : `<div class="${cls.join(" ")}">${inner}</div>`;
-    })
-    .join("");
-  const detail = cal.selected 
-  ? ""
-  : "";
   el.innerHTML = `
-    <div class="panel cal-panel">
-      <div class="cal-head">
+    <p class="admin-flash" id="parent-flash" hidden></p>
+
+    <div class="overview-dashboard" id="tab-overview" data-page="phu-huynh">
+
+      <!-- Banner chào mừng phụ huynh -->
+      <div class="welcome-banner">
         <div>
-          <h2 class="cal-title">${monthLabel}</h2>
-          <p class="cal-hint">Bấm vào bất kỳ buổi học nào trên lịch để mở popup xem chi tiết: môn học, giáo viên, thời gian học và thời gian bắt đầu – kết thúc.</p>
+          <h2 class="welcome-title">Xin chào, ${escapeHtml(parent.fullName)}!</h2>
+          <p class="welcome-sub">
+            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${student.id}</strong>) · Hôm nay: ${formatDate(todayStr())}
+          </p>
         </div>
-        <div class="cal-nav">
-          <button type="button" class="icon-btn" data-cal="prev" title="Tháng trước">${ICONS.back}</button>
-          <button type="button" class="btn btn-sm" data-cal="today">Hôm nay</button>
-          <button type="button" class="icon-btn cal-next" data-cal="next" title="Tháng sau">${ICONS.back}</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <span class="badge active" style="font-size:13px;padding:6px 14px;">
+            ● Đã liên kết học sinh
+          </span>
         </div>
       </div>
-      <div class="cal-grid">
-        ${WEEKDAYS.map((w) => `<div class="cal-dow">${w.label}</div>`).join("")}
-        ${cellHtml}
-      </div>
-    </div>
 
-    ${detail}
-
-    <div class="section-title">Lịch học hằng tuần của các lớp</div>
-    ${
-      d.myClasses.length
-        ? `<div class="panel">${d.myClasses.map(weekRow).join("")}</div>`
-        : `<div class="empty panel">Học sinh chưa đăng ký lớp nào.</div>`
-    }
-  `;
-
-  const move = (delta) => {
-    const d0 = new Date(cal.y, cal.m + delta, 1);
-    cal.y = d0.getFullYear();
-    cal.m = d0.getMonth();
-    cal.selected = null;
-    renderSchedule(el, ctx);
-  };
-
-  el.querySelector('[data-cal="prev"]').addEventListener("click", () => move(-1));
-  el.querySelector('[data-cal="next"]').addEventListener("click", () => move(1));
-  el.querySelector('[data-cal="today"]').addEventListener("click", () => {
-    cal.y = now.getFullYear();
-    cal.m = now.getMonth();
-    cal.selected = byDate.has(today) ? today : null;
-    renderSchedule(el, ctx);
-  });
-
-  // Bấm trực tiếp vào 1 chip buổi học trên calendar -> mở popup chi tiết buổi học đó
-  el.querySelectorAll(".cal-chip-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const iso = btn.dataset.day;
-      const sessId = btn.dataset.sessionId;
-      const list = byDate.get(iso) || [];
-      const item = list.find((it) => it.session.id === sessId);
-      if (item) {
-        cal.selected = iso;
-        el.querySelectorAll(".cal-cell").forEach((c) => c.classList.remove("cal-selected"));
-        el.querySelector(`.cal-cell[data-day="${iso}"]`)?.classList.add("cal-selected");
-        showSessionPopup(item.cls, item.session, iso, student.id);
-      }
-    });
-  });
-
-  // Bấm vào ô ngày trên calendar
-  el.querySelectorAll(".cal-cell[data-day]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const iso = btn.dataset.day;
-      cal.selected = iso;
-      const list = byDate.get(iso) || [];
-      if (list.length === 1) {
-        showSessionPopup(list[0].cls, list[0].session, iso, student.id);
-      }
-      renderSchedule(el, ctx);
-    })
-  );
-
-  // Bấm vào hàng buổi học trong bảng chi tiết ngày hoặc nút Chi tiết
-  el.querySelectorAll("[data-session-item-id]").forEach((itemEl) => {
-    itemEl.addEventListener("click", (e) => {
-      if (e.target.closest("a")) return; // Không can thiệp liên kết tải tài liệu
-      const sessId = itemEl.dataset.sessionItemId;
-      const iso = itemEl.dataset.day;
-      const list = byDate.get(iso) || [];
-      const item = list.find((it) => it.session.id === sessId);
-      if (item) {
-        showSessionPopup(item.cls, item.session, iso, student.id);
-      }
-    });
-  });
-}
-
-// Popup hiển thị chi tiết buổi học khi ấn vào một buổi học trên calendar
-function showSessionPopup(cls, session, iso, studentId) {
-  ensureModalStyles();
-
-  const oldModal = document.getElementById("session-detail-modal");
-  if (oldModal) oldModal.remove();
-
-  const slot = slotOfClass(cls, iso);
-  const teacher = listUsers("teacher").find((u) => u.id === cls.teacherId);
-  const teacherFullName = teacher?.fullName || teacherName(cls.teacherId);
-  const dow = weekdayLabel(parseIso(iso));
-  const mats = listMaterialsBySession(session.id);
-  const isUpcoming = iso >= todayStr();
-
-  const modalHtml = `
-    <div id="session-detail-modal" class="session-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-modal-heading">
-      <div class="session-modal-box">
-        <div class="session-modal-head">
-          <div class="session-modal-title-wrap">
-            <span class="badge subject">${subjectLabel(cls.subject)}</span>
-            <span class="badge ${isUpcoming ? "open" : "closed"}">${isUpcoming ? "Sắp tới" : "Đã diễn ra"}</span>
-            <h3 class="session-modal-heading" id="session-modal-heading">Chi tiết buổi học</h3>
-          </div>
-          <button type="button" class="session-modal-close-btn" id="session-modal-close" aria-label="Đóng" title="Đóng">&times;</button>
-        </div>
-
-        <div class="session-modal-body">
-          <div class="session-modal-hero">
-            <div class="session-hero-title">${escapeHtml(cls.className)}</div>
-            ${session.title ? `<div class="session-hero-subtitle">${escapeHtml(session.title)}</div>` : ""}
-          </div>
-
-          <div class="session-info-grid">
-            <!-- 1. Môn học -->
-            <div class="session-info-card">
-              <div class="session-info-icon">${ICONS.classes}</div>
-              <div class="session-info-content">
-                <span class="session-info-label">Môn học</span>
-                <strong class="session-info-val">${subjectLabel(cls.subject)}</strong>
-                <span class="session-info-sub">Lớp: ${cls.className}</span>
-              </div>
-            </div>
-
-            <!-- 2. Giáo viên giảng dạy -->
-            <div class="session-info-card">
-              <div class="session-info-icon">${ICONS.users}</div>
-              <div class="session-info-content">
-                <span class="session-info-label">Giáo viên giảng dạy</span>
-                <strong class="session-info-val">${teacherFullName}</strong>
-                ${teacher?.email ? `<span class="session-info-sub">${escapeHtml(teacher.email)}</span>` : ""}
-              </div>
-            </div>
-
-            <!-- 3. Thời gian học -->
-            <div class="session-info-card">
-              <div class="session-info-icon">${ICONS.calendar}</div>
-              <div class="session-info-content">
-                <span class="session-info-label">Thời gian học</span>
-                <strong class="session-info-val">${dow}, ngày ${formatDate(iso)}</strong>
-                <span class="session-info-sub">Ngày diễn ra buổi học</span>
-              </div>
-            </div>
-
-            <!-- 4. Thời gian bắt đầu và kết thúc -->
-            <div class="session-info-card session-info-highlight">
-              <div class="session-info-icon">${ICONS.clock}</div>
-              <div class="session-info-content">
-                <span class="session-info-label">Thời gian bắt đầu & kết thúc</span>
-                ${
-                  slot
-                    ? `
-                  <div class="session-time-row">
-                    <div class="session-time-pill">
-                      <span class="time-pill-label">Bắt đầu</span>
-                      <strong class="time-pill-val">${slot.start}</strong>
-                    </div>
-                    <span class="session-time-sep">➔</span>
-                    <div class="session-time-pill">
-                      <span class="time-pill-label">Kết thúc</span>
-                      <strong class="time-pill-val">${slot.end}</strong>
-                    </div>
-                  </div>
-                  <div class="session-time-text">Khung giờ học: <b>${slot.start} – ${slot.end}</b></div>
-                `
-                    : `<strong class="session-info-val muted">Chưa cập nhật khung giờ</strong>`
-                }
-              </div>
-            </div>
-
-            <!-- Điểm danh học sinh -->
-            <div class="session-info-card">
-              <div class="session-info-icon">${ICONS.school}</div>
-              <div class="session-info-content">
-                <span class="session-info-label">Điểm danh của con</span>
-                <div>${attBadge(session.id, studentId)}</div>
-              </div>
-            </div>
-          </div>
-
+      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
+      <div class="overview-jump-bar" id="overview-jump-bar">
+        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
+        <a class="jump-pill active" href="#overview-kpis">
+          <span>📊 Chỉ số của con</span>
+        </a>
+        <a class="jump-pill" href="#overview-schedule">
+          <span>📅 Lịch học tuần này</span>
+          <span class="jump-badge">${myClasses.length} môn</span>
+        </a>
+        <a class="jump-pill" href="#overview-grades">
+          <span>📝 Bảng điểm & Lời phê</span>
+        </a>
+        <a class="jump-pill" href="#overview-attendance">
+          <span>📋 Theo dõi Chuyên cần</span>
+          <span class="jump-badge">${attendanceList.length} buổi</span>
+        </a>
+        <a class="jump-pill" href="#overview-notifications">
+          <span>🔔 Thông báo & Phê duyệt</span>
           ${
-            mats.length
-              ? `
-            <div class="session-modal-section">
-              <div class="session-section-title">${ICONS.paperclip} Tài liệu buổi học (${mats.length})</div>
-              <div class="day-mats">
-                ${mats
-                  .map(
-                    (m) =>
-                      `<span class="mat-chip">${ICONS.paperclip} ${escapeHtml(m.fileName)} ${materialLink(m)}</span>`
-                  )
-                  .join("")}
-              </div>
-            </div>
-          `
-              : ""
+            pendingCancelRequests.length
+              ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingCancelRequests.length}</span>`
+              : `<span class="jump-badge">0</span>`
           }
+        </a>
+        <a class="jump-pill" href="#overview-materials">
+          <span>📎 Tài liệu bài học của con</span>
+          <span class="jump-badge">${allMaterials.length}</span>
+        </a>
+      </div>
+
+      <!-- 1. DIV CHỈ SỐ HỌC TẬP CỦA CON (KPI) -->
+      <div class="overview-panel" id="overview-kpis">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap">${ICONS.grid}</span>
+            <div>
+              <h2 class="panel-title">Chỉ số Học tập Toàn diện của Con</h2>
+              <span class="muted" style="font-size:12px;">Tổng hợp học lực, chuyên cần và tiến độ học tập</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-kpi">
+              ${ICONS.eye}
+              <span>Xem chi tiết hồ sơ con</span>
+            </button>
+          </div>
+        </div>
+        <div style="padding: 20px 24px;">
+          <div class="kpi-row">
+            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
+              <div class="kpi-icon">${ICONS.classes}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${myClasses.length}</span>
+                <span class="kpi-tit">Số môn đang học</span>
+                <span class="kpi-sub">${myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có"}</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#0d8a5f;--kpi-bg:#e6f8f0;">
+              <div class="kpi-icon">${ICONS.edit}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${overallAvg}</span>
+                <span class="kpi-tit">Điểm trung bình hiện tại</span>
+                <span class="kpi-sub">${overallAvg !== "—" && parseFloat(overallAvg) >= 8 ? "Học lực giỏi" : "Tiến độ đạt yêu cầu"}</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
+              <div class="kpi-icon">${ICONS.check}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${attRate}%</span>
+                <span class="kpi-tit">Tỷ lệ chuyên cần</span>
+                <span class="kpi-sub">${attPresentCount}/${attendanceList.length || 1} buổi có mặt</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#6a1bff;--kpi-bg:#f2ecff;">
+              <div class="kpi-icon">${ICONS.bell}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${notifications.length}</span>
+                <span class="kpi-tit">Thông báo học tập</span>
+                <span class="kpi-sub">${pendingCancelRequests.length ? `${pendingCancelRequests.length} yêu cầu cần duyệt` : "Cập nhật liên tục"}</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
+              <div class="kpi-icon">${ICONS.paperclip}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${allMaterials.length}</span>
+                <span class="kpi-tit">Tài liệu ôn tập</span>
+                <span class="kpi-sub">Hỗ trợ con tự học tại nhà</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. DIV LỊCH HỌC TRONG TUẦN CỦA CON -->
+      <div class="overview-panel" id="overview-schedule">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#eef2ff;color:#4f46e5;">${ICONS.calendar}</span>
+            <div>
+              <h2 class="panel-title">Thời khóa biểu Học tập của Con</h2>
+              <span class="count-chip">${myClasses.length} môn học</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-schedule">
+              ${ICONS.eye}
+              <span>Xem chi tiết lịch học</span>
+            </button>
+          </div>
         </div>
 
-        <div class="session-modal-foot">
-          <button type="button" class="btn btn-primary" id="session-modal-ok">Đóng</button>
+        <div style="padding: 20px 24px;">
+          <div class="schedule-grid-week">
+            ${daysWeek
+              .map(
+                (d) => `
+                  <div class="schedule-day-card ${d.isToday ? "today" : ""}">
+                    <div class="schedule-day-head">
+                      <span class="schedule-day-name">${d.label}</span>
+                      ${d.isToday ? `<span class="badge active" style="font-size:10px;padding:1px 6px;">Hôm nay</span>` : ""}
+                      <span class="schedule-day-count">${d.slots.length} ca</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
+                      ${
+                        d.slots.length
+                          ? d.slots
+                              .map(
+                                (s) => `
+                                  <div class="schedule-slot-item">
+                                    <span class="schedule-slot-title">${escapeHtml(s.className)}</span>
+                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${subjectLabel(s.subject)}</span>
+                                    <span class="schedule-slot-time">⏰ ${s.time}</span>
+                                    <span style="font-size:10.5px;color:var(--muted);">Giáo viên: ${escapeHtml(s.teacherName)}</span>
+                                  </div>`
+                              )
+                              .join("")
+                          : `<span class="muted" style="font-size:11px;margin:auto 0;text-align:center;">Không có lịch</span>`
+                      }
+                    </div>
+                  </div>`
+              )
+              .join("")}
+          </div>
         </div>
       </div>
-    </div>
-  `;
 
-  document.body.insertAdjacentHTML("beforeend", modalHtml);
-
-  const modalEl = document.getElementById("session-detail-modal");
-  const close = () => {
-    if (modalEl) {
-      modalEl.classList.add("closing");
-      setTimeout(() => modalEl.remove(), 180);
-      document.removeEventListener("keydown", onKeyDown);
-    }
-  };
-
-  const onKeyDown = (e) => {
-    if (e.key === "Escape") close();
-  };
-  document.addEventListener("keydown", onKeyDown);
-
-  modalEl.querySelector("#session-modal-close")?.addEventListener("click", close);
-  modalEl.querySelector("#session-modal-ok")?.addEventListener("click", close);
-  modalEl.addEventListener("click", (e) => {
-    if (e.target === modalEl) close();
-  });
-}
-
-function ensureModalStyles() {
-  if (document.getElementById("parents-dashboard-modal-styles")) return;
-  const style = document.createElement("style");
-  style.id = "parents-dashboard-modal-styles";
-  style.textContent = `
-    .session-modal-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: rgba(26, 16, 51, 0.55);
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      animation: sessionModalFadeIn 0.2s ease-out;
-    }
-    .session-modal-overlay.closing {
-      animation: sessionModalFadeOut 0.18s ease-in forwards;
-    }
-    .session-modal-box {
-      background: #ffffff;
-      border-radius: 20px;
-      width: min(540px, 100%);
-      max-height: 90vh;
-      overflow-y: auto;
-      box-shadow: 0 24px 60px -12px rgba(43, 10, 94, 0.35);
-      border: 1px solid var(--line, #e6e1f5);
-      display: flex;
-      flex-direction: column;
-      animation: sessionModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .session-modal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--line, #e6e1f5);
-      background: #ffffff;
-      position: sticky;
-      top: 0;
-      z-index: 2;
-    }
-    .session-modal-title-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .session-modal-heading {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--brand-ink, #2b0a5e);
-    }
-    .session-modal-close-btn {
-      background: none;
-      border: none;
-      font-size: 26px;
-      line-height: 1;
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--muted, #6d688a);
-      transition: background 0.15s, color 0.15s;
-    }
-    .session-modal-close-btn:hover {
-      background: var(--field, #f5f3fc);
-      color: var(--brand-ink, #2b0a5e);
-    }
-    .session-modal-body {
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .session-modal-hero {
-      background: linear-gradient(135deg, #f7f3ff 0%, #ede6ff 100%);
-      border: 1px solid #dcc7ff;
-      border-radius: 14px;
-      padding: 16px 18px;
-    }
-    .session-hero-title {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--brand-ink, #2b0a5e);
-    }
-    .session-hero-subtitle {
-      font-size: 13px;
-      color: var(--brand-dark, #5e1bd6);
-      margin-top: 4px;
-      font-weight: 600;
-    }
-    .session-info-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .session-info-card {
-      background: var(--field, #f5f3fc);
-      border: 1px solid var(--line, #e6e1f5);
-      border-radius: 12px;
-      padding: 12px 14px;
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-    }
-    .session-info-card.full-width {
-      grid-column: 1 / -1;
-    }
-    .session-info-card.session-info-highlight {
-      grid-column: 1 / -1;
-      background: #f6f0ff;
-      border: 1.5px solid #d9c2ff;
-    }
-    .session-info-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: #ffffff;
-      color: var(--brand, #863bff);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: none;
-      box-shadow: 0 2px 6px rgba(134, 59, 255, 0.12);
-    }
-    .session-info-icon svg {
-      width: 18px;
-      height: 18px;
-    }
-    .session-info-content {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-      flex: 1;
-    }
-    .session-info-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted, #6d688a);
-    }
-    .session-info-val {
-      font-size: 14px;
-      color: var(--brand-ink, #2b0a5e);
-      word-break: break-word;
-    }
-    .session-info-sub {
-      font-size: 12px;
-      color: var(--muted, #6d688a);
-    }
-    .session-time-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-    }
-    .session-time-pill {
-      background: #ffffff;
-      border: 1px solid #dcc7ff;
-      border-radius: 8px;
-      padding: 6px 14px;
-      text-align: center;
-      flex: 1;
-    }
-    .time-pill-label {
-      display: block;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--muted, #6d688a);
-      text-transform: uppercase;
-    }
-    .time-pill-val {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--brand-dark, #5e1bd6);
-    }
-    .session-time-sep {
-      color: var(--brand, #863bff);
-      font-weight: bold;
-      font-size: 16px;
-    }
-    .session-time-text {
-      font-size: 12px;
-      color: var(--muted, #6d688a);
-      margin-top: 6px;
-    }
-    .session-modal-section {
-      border-top: 1px dashed var(--line, #e6e1f5);
-      padding-top: 14px;
-    }
-    .session-section-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted, #6d688a);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    .session-section-title svg {
-      width: 14px;
-      height: 14px;
-    }
-    .session-modal-foot {
-      padding: 14px 22px;
-      border-top: 1px solid var(--line, #e6e1f5);
-      background: #faf9fd;
-      display: flex;
-      justify-content: flex-end;
-      border-bottom-left-radius: 20px;
-      border-bottom-right-radius: 20px;
-    }
-    .cal-chip-btn {
-      display: block;
-      width: 100%;
-      padding: 3px 6px;
-      font-size: 11px;
-      font-weight: 700;
-      font-family: inherit;
-      color: var(--brand-dark, #5e1bd6);
-      background: #f2ecff;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      text-align: left;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .cal-chip-btn:hover {
-      background: #e6d8ff;
-      border-color: #c9b1ff;
-      color: var(--brand-ink, #2b0a5e);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 5px rgba(94, 27, 214, 0.15);
-    }
-    .cal-cell.cal-has {
-      cursor: pointer;
-    }
-    .cal-cell.cal-has:hover {
-      background: #fcfaff;
-      border-color: #baa0f7;
-    }
-    .day-session-clickable {
-      cursor: pointer;
-      transition: background 0.15s, transform 0.15s;
-    }
-    .day-session-clickable:hover {
-      background: #faf8ff;
-    }
-    .session-btn-detail {
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 8px;
-      border: 1px solid var(--brand, #863bff);
-      background: #ffffff;
-      color: var(--brand, #863bff);
-      cursor: pointer;
-      font-weight: 700;
-      transition: all 0.15s ease;
-    }
-    .session-btn-detail:hover {
-      background: var(--brand, #863bff);
-      color: #ffffff;
-    }
-    @keyframes sessionModalFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes sessionModalFadeOut {
-      from { opacity: 1; }
-      to { opacity: 0; }
-    }
-    @keyframes sessionModalSlideUp {
-      from { opacity: 0; transform: translateY(18px) scale(0.97); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @media (max-width: 520px) {
-      .session-info-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-// Chi tiết một buổi học trong ngày: tên giáo viên + giờ bắt đầu/kết thúc.
-function daySessionRow(cls, session, iso, studentId) {
-  const slot = slotOfClass(cls, iso);
-  const mats = listMaterialsBySession(session.id);
-  return `
-    <div class="row-item day-session-clickable" data-session-item-id="${session.id}" data-day="${iso}" title="Bấm để xem popup chi tiết buổi học">
-      <div>
-        <strong class="row-title">
-          <span class="badge subject">${subjectLabel(cls.subject)}</span>
-          ${cls.className} · ${escapeHtml(session.title || "Buổi học")}
-        </strong>
-        <span class="row-sub">Giáo viên: <b>${teacherName(cls.teacherId)}</b></span>
-        <span class="row-sub">Thời gian: ${slot ? `${slot.start} – ${slot.end}` : "Chưa cập nhật"}</span>
-        ${
-          mats.length
-            ? `<div class="day-mats">${mats
-                .map(
-                  (m) =>
-                    `<span class="mat-chip">${ICONS.paperclip} ${m.fileName} ${materialLink(m)}</span>`
-                )
-                .join("")}</div>`
-            : ""
-        }
-      </div>
-      <span class="row-end day-end">
-        ${attBadge(session.id, studentId)}
-        <span class="muted">${iso >= todayStr() ? "Sắp tới" : "Đã diễn ra"}</span>
-        <button type="button" class="session-btn-detail" data-session-item-id="${session.id}" data-day="${iso}">Chi tiết</button>
-      </span>
-    </div>`;
-}
-
-const weekRow = (c) => `
-  <div class="row-item">
-    <div>
-      <strong class="row-title">
-        <span class="badge subject">${subjectLabel(c.subject)}</span>
-        ${c.className}
-      </strong>
-      <span class="row-sub">${formatSchedule(c.schedule)}</span>
-    </div>
-    <span class="row-end muted">GV: ${teacherName(c.teacherId)}</span>
-  </div>`;
-
-// ------------------------------------------------------------------ trường bảng điểm & nhận xét
-// Bảng điểm và nhận xét của giáo viên được gộp theo từng môn (từng lớp),
-// kèm điểm trung bình của từng môn và trung bình chung.
-function renderGrades(el, ctx) {
-  const { student, d } = ctx;
-
-  const blocks = d.myClasses.map((c) => {
-    const grades = listGradesByStudentInClass(c.id, student.id)
-      .slice()
-      .sort(
-        (a, b) =>
-          GRADE_TYPES.indexOf(a.type) - GRADE_TYPES.indexOf(b.type) ||
-          String(a.id).localeCompare(String(b.id))
-      );
-    const comments = listCommentsByStudent(c.id, student.id)
-      .slice()
-      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-    const avg = grades.length
-      ? grades.reduce((s, g) => s + Number(g.score || 0), 0) / grades.length
-      : null;
-    return { cls: c, grades, comments, avg };
-  });
-
-  const allGrades = blocks.flatMap((b) => b.grades);
-  const overall = allGrades.length
-    ? allGrades.reduce((s, g) => s + Number(g.score || 0), 0) / allGrades.length
-    : null;
-  const commentCount = blocks.reduce((n, b) => n + b.comments.length, 0);
-
-  el.innerHTML = `
-    <div class="stat-grid">
-      ${statCard(ICONS.classes, blocks.length, "Môn đang học")}
-      ${statCard(ICONS.edit, allGrades.length, "Bài đã có điểm")}
-      ${statCard(ICONS.school, overall === null ? "—" : overall.toFixed(1), "Điểm trung bình chung")}
-    </div>
-
-    <div class="section-title">Bảng điểm & nhận xét theo môn (${blocks.length} môn)</div>
-    ${
-      blocks.length
-        ? blocks.map(gradeBlock).join("")
-        : `<div class="empty panel">Học sinh chưa đăng ký lớp nào.</div>`
-    }
-    ${commentCount === 0 && blocks.length ? `<p class="hint-sm">Chưa có nhận xét nào từ giáo viên.</p>` : ""}
-  `;
-}
-
-const gradeBlock = ({ cls, grades, comments, avg }) => `
-  <div class="subject-block">
-    <div class="subject-head">
-      <div class="detail-title">
-        <span class="badge subject">${subjectLabel(cls.subject)}</span>
-        <h3 class="detail-name">${cls.className}</h3>
-        <span class="subject-teacher">GV: ${teacherName(cls.teacherId)}</span>
-      </div>
-      <span class="count-chip">${
-        avg !== null
-          ? `Điểm TB: ${avg.toFixed(1)} · ${grades.length} bài`
-          : "Chưa có điểm"
-      }</span>
-    </div>
-
-    <div class="split">
-      <div class="panel">
-        <div class="panel-head"><h4 class="panel-title">Bảng điểm</h4></div>
-        ${
-          grades.length
-            ? `<div class="table-wrap"><table>
-                <thead><tr><th>Loại</th><th>Điểm</th><th>Ghi chú</th></tr></thead>
-                <tbody>${grades
-                  .map(
-                    (g) => `
-                      <tr>
-                        <td>${g.type}</td>
-                        <td><strong>${g.score}</strong></td>
-                        <td class="muted">${escapeHtml(g.note || "—")}</td>
-                      </tr>`
-                  )
-                  .join("")}</tbody>
-              </table></div>`
-            : `<div class="empty">Chưa có điểm cho môn này. Điểm số sẽ hiển thị ngay khi giáo viên nhập.</div>`
-        }
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <h4 class="panel-title">Nhận xét của giáo viên</h4>
-          <span class="count-chip">${comments.length} nhận xét</span>
+      <!-- 3. DIV BẢNG ĐIỂM & NHẬN XÉT CỦA GIÁO VIÊN -->
+      <div class="overview-panel" id="overview-grades">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#fef3c7;color:#b45309;">${ICONS.edit}</span>
+            <div>
+              <h2 class="panel-title">Bảng điểm & Lời nhận xét của Thầy/Cô</h2>
+              <span class="count-chip">ĐTB Tổng: ${overallAvg}</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-grades">
+              ${ICONS.eye}
+              <span>Xem chi tiết bảng điểm</span>
+            </button>
+          </div>
         </div>
-        <div class="comment-list">
+
+        <div style="padding: 20px 24px;">
           ${
-            comments.length
-              ? comments
-                  .map(
-                    (cm) => `
-                    <div class="comment-item">
-                      <span class="comment-head">
-                        <b>${teacherName(cm.teacherId || cls.teacherId)}</b>
-                        <small>${formatDate(String(cm.createdAt || "").slice(0, 10))}</small>
-                      </span>
-                      <p>${escapeHtml(cm.content)}</p>
-                    </div>`
-                  )
-                  .join("")
-              : `<div class="empty">Chưa có nhận xét nào cho môn này.</div>`
+            myClasses.length
+              ? `<div style="display:flex;flex-direction:column;gap:14px;">
+                  ${myClasses
+                    .map((c) => {
+                      const gr = classGradesMap.get(c.id);
+                      const myCm = comments.filter((cm) => cm.classId === c.id);
+                      const latestCm = myCm.length ? myCm[myCm.length - 1].content : "Chưa có lời phê cho môn này.";
+
+                      return `
+                        <div class="grade-matrix-card">
+                          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                              <span class="badge subject">${subjectLabel(c.subject)}</span>
+                              <strong style="font-size:15px;color:var(--brand-ink);">${escapeHtml(c.className)}</strong>
+                              <span class="muted" style="font-size:12.5px;">(Thầy/Cô: ${escapeHtml(c.teacherName)})</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                              <span style="font-size:12.5px;color:var(--muted);font-weight:700;">ĐTB Môn:</span>
+                              <span class="grade-score-pill ${gr && gr.avg !== '—' && parseFloat(gr.avg) >= 8 ? 'high' : ''}">
+                                ${gr ? gr.avg : '—'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 15 PHÚT (HS 1)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.g15.length ? gr.g15.join(", ") : "—"}</strong>
+                            </div>
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 1 TIẾT (HS 2)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.g45.length ? gr.g45.join(", ") : "—"}</strong>
+                            </div>
+                            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
+                              <span class="muted" style="font-size:11px;font-weight:700;display:block;">THI HỌC KỲ (HS 3)</span>
+                              <strong style="color:var(--brand-ink);">${gr?.gSem.length ? gr.gSem.join(", ") : "—"}</strong>
+                            </div>
+                          </div>
+
+                          <div class="comment-bubble">
+                            <strong>Lời phê của Thầy/Cô:</strong> ${escapeHtml(latestCm)}
+                          </div>
+                        </div>`;
+                    })
+                    .join("")}
+                </div>`
+              : `<div class="empty">Chưa có dữ liệu điểm học tập của con.</div>`
           }
         </div>
       </div>
-    </div>
-  </div>`;
 
-// ------------------------------------------------------------------ trường thông báo
-// Nguồn dữ liệu:
-//  - Điểm danh: dựng lại từ btm_attendance (giáo viên ghi) → không nhân bản.
-//  - Yêu cầu hủy môn: đọc btm_cancel_requests (học sinh gửi) → phụ huynh duyệt.
-function renderNotices(el, ctx) {
-  const { student } = ctx;
-  const notices = buildStudentNotifications(student.id);
-  const pending = notices.filter(
-    (n) => n.kind === "cancel-request" && n.request.status === "pending"
-  );
+      <!-- 4. DIV THEO DÕI CHUYÊN CẦN & ĐIỂM DANH -->
+      <div class="overview-panel" id="overview-attendance">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#e3f6f8;color:#0b7285;">${ICONS.check}</span>
+            <div>
+              <h2 class="panel-title">Nhật ký Điểm danh & Chuyên cần của Con</h2>
+              <span class="count-chip">${attendanceList.length} buổi đã ghi nhận</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-attendance">
+              ${ICONS.eye}
+              <span>Xem chi tiết chuyên cần</span>
+            </button>
+          </div>
+        </div>
 
-  el.innerHTML = `
-    <div class="panel notice-head">
-      <div>
-        <h2 class="panel-title">Thông báo dành cho phụ huynh</h2>
-        <p class="notice-sub">
-          Điểm danh lấy trực tiếp từ dữ liệu giáo viên vừa lưu — bấm “Làm mới” để cập nhật.
-        </p>
+        <div class="table-wrap">
+          ${
+            attendanceList.length
+              ? `<table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Buổi học</th>
+                      <th>Môn học</th>
+                      <th>Trạng thái của con</th>
+                      <th>Ghi chú từ giáo viên</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${attendanceList.slice(0, 8).map((a, i) => {
+                      const sess = DB.findById("sessions", a.sessionId);
+                      const cls = sess ? getClassById(sess.classId) : null;
+                      const badgeCls = a.status === "present" ? "active" : a.status === "late" ? "late" : "closed";
+                      return `
+                        <tr>
+                          <td>${i + 1}</td>
+                          <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong> <small class="muted">(${formatDate(sess?.date || '')})</small></td>
+                          <td><span class="badge subject">${subjectLabel(cls?.subject)}</span></td>
+                          <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                          <td>${escapeHtml(a.note || 'Không có ghi chú')}</td>
+                        </tr>`;
+                    }).join("")}
+                  </tbody>
+                </table>`
+              : `<div class="empty" style="padding:28px;text-align:center;color:var(--muted);">
+                  Chưa có lịch sử điểm danh nào được ghi nhận cho con.
+                </div>`
+          }
+        </div>
       </div>
-      <button class="btn btn-sm" data-refresh>${ICONS.refresh} Làm mới</button>
+
+      <!-- 5. DIV THÔNG BÁO & PHÊ DUYỆT YÊU CẦU HỦY MÔN -->
+      <div class="overview-panel" id="overview-notifications">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#fef3c7;color:#d97706;">${ICONS.bell}</span>
+            <div>
+              <h2 class="panel-title">Thông báo & Yêu cầu Cần Phê duyệt</h2>
+              <span class="count-chip">${pendingCancelRequests.length} yêu cầu chờ xác nhận</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-notifications">
+              ${ICONS.eye}
+              <span>Xem chi tiết thông báo</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 20px 24px;">
+          ${
+            notifications.length
+              ? `<div style="display:flex;flex-direction:column;gap:12px;">
+                  ${notifications.slice(0, 6).map((n) => `
+                    <div style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                      <div style="flex:1;min-width:240px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                          <span class="badge ${n.tone === 'danger' ? 'closed' : n.tone === 'success' ? 'active' : 'subject'}">
+                            ${n.icon} ${n.kind === 'cancel-request' ? 'Yêu cầu hủy môn' : 'Điểm danh'}
+                          </span>
+                          <strong style="font-size:14px;color:var(--brand-ink);">${escapeHtml(n.title)}</strong>
+                        </div>
+                        <p style="margin:4px 0 0;font-size:13px;color:#4b4668;line-height:1.4;">${escapeHtml(n.message)}</p>
+                        ${n.blockedReason ? `<p style="margin:4px 0 0;font-size:12px;color:#c0392b;">⚠️ ${escapeHtml(n.blockedReason)}</p>` : ''}
+                      </div>
+
+                      ${
+                        n.canApprove
+                          ? `<div style="display:flex;gap:8px;align-items:center;">
+                              <button class="btn btn-sm btn-primary" data-p-decide="${n.request.id}" data-action="approved" style="width:auto;padding:6px 12px;">
+                                Đồng ý hủy
+                              </button>
+                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                                Không đồng ý
+                              </button>
+                            </div>`
+                          : n.kind === 'cancel-request' && n.request?.status === 'pending'
+                          ? `<div style="display:flex;gap:8px;align-items:center;">
+                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                                Đóng yêu cầu
+                              </button>
+                            </div>`
+                          : ''
+                      }
+                    </div>
+                  `).join("")}
+                </div>`
+              : `<div class="empty" style="padding:24px;text-align:center;color:var(--muted);">
+                  Hiện tại không có thông báo mới nào về việc học của con.
+                </div>`
+          }
+        </div>
+      </div>
+
+      <!-- 6. DIV TÀI LIỆU BÀI HỌC CỦA CON -->
+      <div class="overview-panel" id="overview-materials">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#f4efff;color:#6a1bff;">${ICONS.paperclip}</span>
+            <div>
+              <h2 class="panel-title">Tài liệu & Bài tập Con đang học</h2>
+              <span class="count-chip">${allMaterials.length} file tài liệu</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-detail-parent-materials">
+              ${ICONS.eye}
+              <span>Xem tất cả tài liệu</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 20px 24px;">
+          ${
+            allMaterials.length
+              ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+                  ${allMaterials.slice(0, 6).map(
+                    (m) => `
+                      <div class="material-file-card">
+                        <div style="min-width:0;">
+                          <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.fileName)}</strong>
+                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${formatDate(m.date)}</span>
+                        </div>
+                        <div>${materialLink(m)}</div>
+                      </div>`
+                  ).join("")}
+                </div>`
+              : `<div class="empty" style="padding:24px;text-align:center;color:var(--muted);">
+                  Chưa có tài liệu nào được tải lên.
+                </div>`
+          }
+        </div>
+      </div>
+
     </div>
-
-    <p id="notice-msg" class="form-error" role="alert" hidden></p>
-
-    ${
-      pending.length
-        ? `<div class="notice-alert danger">
-             <strong>Cần bạn xác nhận:</strong> ${pending.length} yêu cầu hủy môn đang chờ phản hồi.
-           </div>`
-        : ""
-    }
-
-    ${
-      notices.length
-        ? `<div class="notice-list">${notices.map(noticeCard).join("")}</div>`
-        : `<div class="empty panel">Chưa có thông báo nào. Thông báo sẽ xuất hiện khi giáo viên điểm danh hoặc con bạn gửi yêu cầu hủy môn.</div>`
-    }
   `;
 
-  const msgBox = el.querySelector("#notice-msg");
-  const flash = (msg) => {
-    msgBox.textContent = msg;
-    msgBox.hidden = false;
-    setTimeout(() => (msgBox.hidden = true), 3500);
-  };
+  // Jump bar
+  setupParentJumpBar(el);
 
-  // Nút "Làm mới": đọc lại localStorage và vẽ lại trường thông báo.
-  // Cập nhật luôn ctx.d để các tab khác không dùng dữ liệu cũ.
-  el.querySelector("[data-refresh]").addEventListener("click", () => {
-    ctx.d = getStudentOverview(student.id);
-    renderNotices(el, ctx);
+  // Setup detail modals
+  setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate });
+
+  // Setup action decide cancel request
+  setupParentActions(el, parent, student);
+}
+
+function setupParentJumpBar(el) {
+  const links = el.querySelectorAll(".jump-pill");
+  links.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const targetId = link.getAttribute("href").replace("#", "");
+      const targetEl = el.querySelector(`#${targetId}`);
+      if (targetEl) {
+        links.forEach((l) => l.classList.remove("active"));
+        link.classList.add("active");
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate }) {
+  // 1. Chi tiết hồ sơ của con
+  el.querySelector("#btn-detail-parent-kpi")?.addEventListener("click", () => {
+    openModal({
+      title: "Hồ sơ Học tập Tổng thể của Con",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          ${infoRow("Họ và tên con", escapeHtml(student.fullName))}
+          ${infoRow("Mã học sinh", student.id)}
+          ${infoRow("Tài khoản học sinh", `@${escapeHtml(student.username)}`)}
+          ${infoRow("Gmail học sinh", escapeHtml(student.email || "—"))}
+          ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
+          ${infoRow("Tỷ lệ chuyên cần", `<strong>${attRate}%</strong>`)}
+          ${infoRow("Số lượng môn con đang học", `${myClasses.length} môn`)}
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đã hiểu</button>`,
+    });
   });
 
-  el.querySelectorAll("[data-decide]").forEach((btn) =>
+  // 2. Chi tiết lịch học
+  el.querySelector("#btn-detail-parent-schedule")?.addEventListener("click", () => {
+    openModal({
+      title: "Thời khóa biểu Học tập Tuần của Con",
+      size: "modal-xl",
+      body: `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Thứ</th><th>Môn học</th><th>Lớp</th><th>Khung giờ học</th><th>Giáo viên phụ trách</th></tr>
+            </thead>
+            <tbody>
+              ${[2, 3, 4, 5, 6, 7, 8].flatMap((day) => {
+                const label = WEEKDAYS.find((w) => w.value === day)?.label || `T${day}`;
+                const slots = [];
+                myClasses.forEach((c) => {
+                  (c.schedule || []).forEach((s) => {
+                    if (s.dayOfWeek === day) {
+                      slots.push({
+                        dayLabel: label,
+                        subject: c.subject,
+                        className: c.className,
+                        time: `${s.start}–${s.end}`,
+                        teacher: c.teacherName || "Giáo viên",
+                      });
+                    }
+                  });
+                });
+                return slots;
+              }).map((s) => `
+                <tr>
+                  <td><strong>${s.dayLabel}</strong></td>
+                  <td><span class="badge subject">${subjectLabel(s.subject)}</span></td>
+                  <td><strong>${escapeHtml(s.className)}</strong></td>
+                  <td>${s.time}</td>
+                  <td>${escapeHtml(s.teacher)}</td>
+                </tr>
+              `).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Con chưa có lịch học nào.</td></tr>`}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 3. Chi tiết bảng điểm & nhận xét
+  el.querySelector("#btn-detail-parent-grades")?.addEventListener("click", () => {
+    openModal({
+      title: "Bảng điểm & Lời phê Toàn diện của Con",
+      size: "modal-lg",
+      body: `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Môn học</th><th>Lớp</th><th>Điểm 15p</th><th>Điểm 1T</th><th>Học kỳ</th><th>ĐTB Môn</th></tr>
+            </thead>
+            <tbody>
+              ${myClasses.map((c) => {
+                const grades = listGradesByStudentInClass(c.id, student.id);
+                const g15 = grades.filter((g) => g.type === "15m").map((g) => g.score);
+                const g45 = grades.filter((g) => g.type === "45m").map((g) => g.score);
+                const gSem = grades.filter((g) => g.type === "semester").map((g) => g.score);
+                let tot = 0; let coe = 0;
+                g15.forEach((s) => { tot += s * 1; coe += 1; });
+                g45.forEach((s) => { tot += s * 2; coe += 2; });
+                gSem.forEach((s) => { tot += s * 3; coe += 3; });
+                const avg = coe > 0 ? (tot / coe).toFixed(1) : "—";
+                return `
+                  <tr>
+                    <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                    <td><strong>${escapeHtml(c.className)}</strong></td>
+                    <td>${g15.join(", ") || "—"}</td>
+                    <td>${g45.join(", ") || "—"}</td>
+                    <td>${gSem.join(", ") || "—"}</td>
+                    <td><strong style="color:var(--brand-dark);">${avg}</strong></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 4. Chi tiết chuyên cần
+  el.querySelector("#btn-detail-parent-attendance")?.addEventListener("click", () => {
+    openModal({
+      title: "Nhật ký Điểm danh Toàn bộ Buổi học của Con",
+      size: "modal-lg",
+      body: `
+        <div class="table-wrap" style="max-height:420px;overflow-y:auto;">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Tên buổi học</th><th>Ngày</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+            </thead>
+            <tbody>
+              ${attendanceList.map((a, i) => {
+                const sess = DB.findById("sessions", a.sessionId);
+                const badgeCls = a.status === "present" ? "active" : a.status === "late" ? "late" : "closed";
+                return `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong></td>
+                    <td>${formatDate(sess?.date || '')}</td>
+                    <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                    <td>${escapeHtml(a.note || '—')}</td>
+                  </tr>`;
+              }).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Chưa có dữ liệu điểm danh.</td></tr>`}
+            </tbody>
+          </table>
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 5. Chi tiết thông báo
+  el.querySelector("#btn-detail-parent-notifications")?.addEventListener("click", () => {
+    openModal({
+      title: "Tất cả Thông báo & Cập nhật từ Trung tâm",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;">
+          ${notifications.map((n) => `
+            <div style="padding:12px;border:1px solid var(--line);border-radius:10px;background:#faf9fe;">
+              <strong style="display:block;font-size:14px;color:var(--brand-ink);">${escapeHtml(n.title)}</strong>
+              <p style="margin:4px 0 0;font-size:13px;color:#4b4668;">${escapeHtml(n.message)}</p>
+            </div>
+          `).join("") || `<div class="empty">Không có thông báo nào.</div>`}
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+
+  // 6. Chi tiết tài liệu
+  el.querySelector("#btn-detail-parent-materials")?.addEventListener("click", () => {
+    openModal({
+      title: "Thư viện Tài liệu Các môn Con đang học",
+      size: "modal-lg",
+      body: `
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;">
+          ${allMaterials.map((m) => `
+            <div class="material-file-card">
+              <div>
+                <strong>${escapeHtml(m.fileName)}</strong>
+                <span class="muted" style="font-size:12px;display:block;">${escapeHtml(m.className)} · Buổi: ${escapeHtml(m.sessionTitle || '')}</span>
+              </div>
+              <div>${materialLink(m)}</div>
+            </div>
+          `).join("") || `<div class="empty">Chưa có tài liệu nào.</div>`}
+        </div>`,
+      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+    });
+  });
+}
+
+function setupParentActions(el, parent, student) {
+  // Phụ huynh duyệt / từ chối yêu cầu hủy môn của con
+  el.querySelectorAll("[data-p-decide]").forEach((btn) =>
     btn.addEventListener("click", () => {
+      const requestId = btn.dataset.pDecide;
+      const decision = btn.dataset.action; // "approved" hoặc "rejected"
       try {
-        decideCancelRequest(btn.dataset.decide, btn.dataset.decision);
-        // Vẽ lại để thấy ngay: môn đã bị hủy (đồng ý) hoặc giữ nguyên (từ chối),
-        // và để các tab khác cũng bỏ môn đã hủy khỏi danh sách.
-        ctx.d = getStudentOverview(student.id);
-        renderNotices(el, ctx);
-      } catch (err) {
-        flash(err.message);
+        decideCancelRequest(requestId, decision);
+        renderParentOverviewPage(el, parent, student);
+        flash(
+          el,
+          decision === "approved"
+            ? "Đã đồng ý hủy môn học theo yêu cầu của con."
+            : "Đã từ chối yêu cầu hủy môn học của con."
+        );
+      } catch (e) {
+        flash(el, e.message, "error");
       }
     })
   );
-}
-
-function noticeCard(n) {
-  const pendingRequest = n.kind === "cancel-request" && n.request.status === "pending";
-  return `
-    <div class="notice-item ${n.tone}">
-      <span class="notice-icon">${n.icon}</span>
-      <div class="notice-body">
-        <div class="notice-title">${escapeHtml(n.title)}</div>
-        <p class="notice-text">${escapeHtml(n.message)}</p>
-        <div class="notice-meta">${n.kind === "attendance" ? "Điểm danh" : "Yêu cầu hủy môn"} · ${formatDate(n.when)}</div>
-        ${n.blockedReason ? `<p class="notice-warn">${escapeHtml(n.blockedReason)}</p>` : ""}
-        ${
-          pendingRequest
-            ? `<div class="notice-actions">
-                 ${
-                   n.canApprove
-                     ? `<button class="btn btn-sm btn-danger" data-decide="${n.request.id}" data-decision="approved">
-                          ${ICONS.check} Đồng ý hủy môn
-                        </button>`
-                     : `<button class="btn btn-sm btn-danger" disabled title="Lớp đã có buổi học — không thể hủy">${ICONS.check} Đồng ý hủy môn</button>`
-                 }
-                 <button class="btn btn-sm" data-decide="${n.request.id}" data-decision="rejected">
-                   ${ICONS.close} Không đồng ý
-                 </button>
-               </div>`
-            : ""
-        }
-      </div>
-    </div>`;
 }
