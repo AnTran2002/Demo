@@ -166,7 +166,7 @@ function renderStudentOverviewPage(el, student) {
       sessionsList.push({ ...s, cls: c, myAtt: myRec });
     });
   });
-  const attendanceRate = attTotal > 0 ? pct(attPresent, attTotal) : 100;
+  const attendanceRate = attTotal > 0 ? pct(attPresent, attTotal) : null;
   const upcomingSessions = sessionsList
     .filter((s) => s.date >= todayStr())
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -291,9 +291,9 @@ function renderStudentOverviewPage(el, student) {
             <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
               <div class="kpi-icon">${ICONS.check}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${attendanceRate}%</span>
+                <span class="kpi-val">${attendanceRate === null ? "—" : `${attendanceRate}%`}</span>
                 <span class="kpi-tit">Tỷ lệ chuyên cần</span>
-                <span class="kpi-sub">${attPresent}/${attTotal || 1} buổi có mặt</span>
+                <span class="kpi-sub">${attTotal ? `${attPresent}/${attTotal} buổi có mặt` : "Chưa có dữ liệu điểm danh"}</span>
               </div>
             </div>
 
@@ -660,7 +660,7 @@ function setupStudentDetailButtons(el, { student, myClasses, openClasses, allMat
           ${infoRow("Học sinh", escapeHtml(student.fullName))}
           ${infoRow("Mã học sinh", student.id)}
           ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
-          ${infoRow("Tỷ lệ chuyên cần", `${attendanceRate}%`)}
+          ${infoRow("Tỷ lệ chuyên cần", attendanceRate === null ? "Chưa có dữ liệu điểm danh" : `${attendanceRate}%`)}
           ${infoRow("Số lượng môn học đang tham gia", `${myClasses.length} lớp học`)}
           ${infoRow("Số tài liệu bài học có sẵn", `${allMaterials.length} file`)}
         </div>`,

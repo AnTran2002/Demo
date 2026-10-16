@@ -162,7 +162,7 @@ function renderParentOverviewPage(el, parent, student) {
   // Chuyên cần của con
   const attendanceList = listAttendanceOfStudent(student.id);
   const attPresentCount = attendanceList.filter((a) => a.status === "present" || a.status === "late").length;
-  const attRate = attendanceList.length ? pct(attPresentCount, attendanceList.length) : 100;
+  const attRate = attendanceList.length ? pct(attPresentCount, attendanceList.length) : null;
 
   // Lịch học trong tuần của con
   const currentDow = new Date().getDay() === 0 ? 8 : new Date().getDay() + 1;
@@ -207,7 +207,7 @@ function renderParentOverviewPage(el, parent, student) {
         <div>
           <h2 class="welcome-title">Xin chào, ${escapeHtml(parent.fullName)}!</h2>
           <p class="welcome-sub">
-            Hôm nay: ${formatDate(todayStr())}
+            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${student.id}</strong>) · Hôm nay: ${formatDate(todayStr())}
           </p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
@@ -216,18 +216,6 @@ function renderParentOverviewPage(el, parent, student) {
           </span>
         </div>
       </div>
-
-      <section class="parent-student-identity panel" aria-label="Học sinh phụ huynh đang theo dõi">
-        <span class="parent-student-identity-icon" aria-hidden="true">${ICONS.school}</span>
-        <div class="parent-student-identity-details">
-          <span class="parent-student-identity-label">Đang theo dõi học sinh</span>
-          <strong class="parent-student-identity-name">${escapeHtml(student.fullName)}</strong>
-        </div>
-        <div class="parent-student-identity-code">
-          <span class="parent-student-identity-label">Mã học sinh</span>
-          <strong>${escapeHtml(student.id)}</strong>
-        </div>
-      </section>
 
       <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
       <div class="overview-jump-bar" id="overview-jump-bar">
@@ -300,9 +288,9 @@ function renderParentOverviewPage(el, parent, student) {
             <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
               <div class="kpi-icon">${ICONS.check}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${attRate}%</span>
+                <span class="kpi-val">${attRate === null ? "—" : `${attRate}%`}</span>
                 <span class="kpi-tit">Tỷ lệ chuyên cần</span>
-                <span class="kpi-sub">${attPresentCount}/${attendanceList.length || 1} buổi có mặt</span>
+                <span class="kpi-sub">${attendanceList.length ? `${attPresentCount}/${attendanceList.length} buổi có mặt` : "Chưa có dữ liệu điểm danh"}</span>
               </div>
             </div>
 
@@ -650,7 +638,7 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
           ${infoRow("Tài khoản học sinh", `@${escapeHtml(student.username)}`)}
           ${infoRow("Gmail học sinh", escapeHtml(student.email || "—"))}
           ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
-          ${infoRow("Tỷ lệ chuyên cần", `<strong>${attRate}%</strong>`)}
+          ${infoRow("Tỷ lệ chuyên cần", attRate === null ? "Chưa có dữ liệu điểm danh" : `<strong>${attRate}%</strong>`)}
           ${infoRow("Số lượng môn con đang học", `${myClasses.length} môn`)}
         </div>`,
       foot: `<button class="btn btn-primary" data-close>Đã hiểu</button>`,
