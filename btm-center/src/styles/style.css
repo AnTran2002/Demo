@@ -582,7 +582,7 @@ body {
   border-left: 1px solid var(--line);
 }
 
-/* Th? th?ng k� */
+/* Thẻ thống kê */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
