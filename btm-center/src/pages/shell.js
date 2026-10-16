@@ -109,6 +109,7 @@ export function renderShell(container, { title, items }) {
               (i) => `
                 <button class="nav-item${i.active ? " active" : ""}" data-tab="${i.id}">
                   <span class="nav-icon">${i.icon}</span><span class="nav-label">${i.label}</span>
+                  ${i.badge != null && i.badge > 0 ? `<span class="nav-badge">${i.badge}</span>` : ""}
                 </button>`
             )
             .join("")}

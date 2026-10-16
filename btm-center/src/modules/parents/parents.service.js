@@ -19,6 +19,36 @@ export function listParentsOfStudent(studentId) {
   );
 }
 
+// Danh sách học sinh có thể được liên kết: học sinh đang hoạt động và CHƯA có phụ huynh liên kết.
+export function listStudentsAvailableForLink() {
+  return DB.getAll("users").filter(
+    (u) =>
+      u.role === "student" &&
+      u.active &&
+      listParentsOfStudent(u.id).length === 0
+  );
+}
+
+// Gán (hoặc thay đổi) học sinh liên kết cho tài khoản phụ huynh.
+// Ràng buộc: học sinh phải tồn tại, là học sinh, đang hoạt động và chưa có phụ huynh khác liên kết.
+export function linkParentToStudent(parentId, studentId) {
+  const parent = DB.findById("users", parentId);
+  if (!parent || parent.role !== "parent") {
+    throw new Error("Tài khoản phụ huynh không tồn tại");
+  }
+  const student = assertStudentLinkable(studentId);
+  return DB.update("users", parentId, { studentId: student.id });
+}
+
+// Hủy liên kết giữa tài khoản phụ huynh và học sinh hiện tại.
+export function unlinkParent(parentId) {
+  const parent = DB.findById("users", parentId);
+  if (!parent || parent.role !== "parent") {
+    throw new Error("Tài khoản phụ huynh không tồn tại");
+  }
+  return DB.update("users", parentId, { studentId: null });
+}
+
 // Kiểm tra mã học sinh trước khi đăng ký tài khoản phụ huynh.
 // Trả về user học sinh tương ứng, ném lỗi nếu mã không hợp lệ.
 export function assertStudentLinkable(studentId) {

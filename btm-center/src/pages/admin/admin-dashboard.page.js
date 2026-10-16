@@ -18,12 +18,19 @@ import {
   approveClassRequest,
   rejectClassRequest,
 } from "../../modules/classes/class-requests.service.js";
-import { getLinkedStudent } from "../../modules/parents/parents.service.js";
+import {
+  getLinkedStudent,
+  listStudentsAvailableForLink,
+  linkParentToStudent,
+  unlinkParent,
+} from "../../modules/parents/parents.service.js";
 import {
   registerTeacher,
   registerStudent,
   registerParent,
 } from "../../modules/auth/auth.service.js";
+import { Session } from "../../core/session.js";
+import { Router } from "../../core/router.js";
 import { subjectLabel, WEEKDAYS, formatDate, todayStr } from "../../data/constants.js";
 import { escapeHtml } from "../../core/html.js";
 import { DB } from "../../core/db.js";
@@ -130,24 +137,74 @@ function openModal({ title, body, foot = "", size = "", onMount }) {
 // =============================================================================
 // KHỞI TẠO TRANG DASHBOARD ADMIN (CHỈ GIỮ TAB TỔNG QUAN Ở MENU)
 // =============================================================================
+// Cập nhật số thông báo (badge) hiển thị trên mỗi mục menu Sidebar Admin.
+function updateAdminSidebarBadges(appShell, counts) {
+  if (!appShell) return;
+  const map = {
+    overview: counts.overview ?? 0,
+    accounts: counts.accounts ?? 0,
+    classes: counts.classes ?? 0,
+    parentlinks: counts.parentlinks ?? 0,
+    notifications: counts.notifications ?? 0,
+    analytics: counts.analytics ?? 0,
+    settings: counts.settings ?? 0,
+  };
+  appShell.querySelectorAll(".sidebar .nav-item:not(.logout)").forEach((btn) => {
+    const id = btn.dataset.tab;
+    if (!(id in map)) return;
+    const val = map[id];
+    let badge = btn.querySelector(".nav-badge");
+    if (val > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-badge";
+        btn.appendChild(badge);
+      }
+      badge.textContent = val;
+    } else if (badge) {
+      badge.remove();
+    }
+  });
+}
+
 export function renderAdminDashboard(container) {
   // Yêu cầu: Bỏ tab quản lý lớp học và tab thông báo ở menu.
   // Đưa tất cả vào 1 trang duy nhất trong tab "Tổng quan".
   const tabs = [
-    {
-      id: "overview",
-      label: "Tổng quan",
-      icon: ICONS.grid,
-      active: true,
-      render: renderAdminOverviewPage,
-    },
+    { id: "overview", label: "Tổng quan", icon: ICONS.grid, active: true, section: "overview-kpis" },
+    { id: "accounts", label: "Quản lý người dùng", icon: ICONS.users, section: "overview-accounts" },
+    { id: "classes", label: "Quản lý lớp học", icon: ICONS.classes, section: "overview-classes" },
+    { id: "parentlinks", label: "Liên kết PH - HS", icon: ICONS.school, section: "overview-parentlinks" },
+    { id: "notifications", label: "Thông báo & Phê duyệt", icon: ICONS.bell, section: "overview-notifications" },
+    { id: "analytics", label: "Báo cáo & Thống kê", icon: ICONS.calendar, section: "overview-analytics" },
+    { id: "settings", label: "Cài đặt hệ thống", icon: ICONS.clock, section: "overview-quickactions" },
   ];
 
   renderShell(container, { title: "Tổng quan Quản trị viên", items: tabs });
   const content = container.querySelector("#tab-content");
 
-  // Render trang Tổng quan hợp nhất
+  // Render trang Tổng hợp hợp nhất
   renderAdminOverviewPage(content);
+
+  // Điều hướng Sidebar: cuộn tới section tương ứng & giữ trạng thái active
+  setupAdminSidebarNav(container, tabs);
+}
+
+function setupAdminSidebarNav(container, tabs) {
+  const nav = container.querySelector(".sidebar-nav");
+  const content = container.querySelector("#tab-content");
+  if (!nav || !content) return;
+  nav.querySelectorAll(".nav-item:not(.logout)").forEach((btn) => {
+    const id = btn.dataset.tab;
+    const item = tabs.find((t) => t.id === id);
+    if (!item) return;
+    btn.addEventListener("click", () => {
+      nav.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const section = content.querySelector(`#${item.section}`);
+      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 // =============================================================================
@@ -161,6 +218,18 @@ function renderAdminOverviewPage(el) {
   const requests = listClassRequests();
   const pendingRequests = requests.filter((r) => r.status === "pending");
 
+  // Số hiển thị badge trên menu Sidebar (theo từng mục)
+  const unlinkedParents = allUsers.filter((u) => u.role === "parent" && !u.studentId).length;
+  const sidebarCounts = {
+    overview: 0,
+    accounts: allUsers.length,
+    classes: allClasses.length,
+    parentlinks: unlinkedParents,
+    notifications: pendingRequests.length,
+    analytics: 0,
+    settings: 0,
+  };
+
   // Thống kê nhanh
   const teachersCount = allUsers.filter((u) => u.role === "teacher").length;
   const activeTeachersCount = allUsers.filter((u) => u.role === "teacher" && u.active).length;
@@ -168,6 +237,7 @@ function renderAdminOverviewPage(el) {
   const activeStudentsCount = allUsers.filter((u) => u.role === "student" && u.active).length;
   const parentsCount = allUsers.filter((u) => u.role === "parent").length;
   const openClassesCount = allClasses.filter((c) => c.status === "open").length;
+  const teachers = allUsers.filter((u) => u.role === "teacher");
 
   // Tính tổng dung lượng học sinh và tỷ lệ lấp đầy
   const totalMaxSlots = allClasses.reduce((sum, c) => sum + (c.maxSlot || 0), 0);
@@ -227,36 +297,6 @@ function renderAdminOverviewPage(el) {
             ${ICONS.plus} Thêm tài khoản
           </button>
         </div>
-      </div>
-
-      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
-      <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
-        <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số KPI</span>
-        </a>
-        <a class="jump-pill" href="#overview-accounts">
-          <span>Quản lý tài khoản</span>
-          <span class="jump-badge">${allUsers.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-classes">
-          <span>Quản lý lớp học</span>
-          <span class="jump-badge">${allClasses.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-notifications">
-          <span>Thông báo & Phê duyệt</span>
-          ${
-            pendingRequests.length
-              ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingRequests.length}</span>`
-              : `<span class="jump-badge">0</span>`
-          }
-        </a>
-        <a class="jump-pill" href="#overview-analytics">
-          <span>Tình trạng trung tâm</span>
-        </a>
-        <a class="jump-pill" href="#overview-quickactions">
-          <span>Tiện ích & Nhật ký</span>
-        </a>
       </div>
 
       <!-- 1. DIV CHỈ SỐ TỔNG QUAN & KPI -->
@@ -368,6 +408,11 @@ function renderAdminOverviewPage(el) {
               <option value="active">Đang hoạt động</option>
               <option value="inactive">Đã bị khóa</option>
             </select>
+            <select class="toolbar-select" id="acc-link-select">
+              <option value="">Trạng thái liên kết HS</option>
+              <option value="linked">Phụ huynh đã liên kết học sinh</option>
+              <option value="unlinked">Phụ huynh CHƯA liên kết học sinh</option>
+            </select>
           </div>
         </div>
 
@@ -414,6 +459,16 @@ function renderAdminOverviewPage(el) {
               <option value="">Tất cả trạng thái</option>
               <option value="open">Đang mở hoạt động</option>
               <option value="closed">Đã đóng</option>
+            </select>
+            <select class="toolbar-select" id="cls-teacher-select">
+              <option value="">Tất cả giáo viên</option>
+              ${teachers
+                .map((t) => `<option value="${t.id}">${escapeHtml(t.fullName)}</option>`)
+                .join("")}
+            </select>
+            <select class="toolbar-select" id="cls-weekday-select">
+              <option value="">Tất cả thứ</option>
+              ${WEEKDAYS.map((w) => `<option value="${w.value}">${w.label}</option>`).join("")}
             </select>
           </div>
         </div>
@@ -474,6 +529,14 @@ function renderAdminOverviewPage(el) {
                             <span class="badge ${REQ_STATUS_BADGES[r.status]}">
                               ${REQ_STATUS_LABELS[r.status]}
                             </span>
+                            ${
+                              r.status === "pending"
+                                ? `
+                                <button class="btn btn-sm btn-success" data-req-approve="${r.id}" style="width:auto;padding:5px 10px;font-size:12px;">Chấp nhận</button>
+                                <button class="btn btn-sm btn-danger" data-req-reject="${r.id}" style="width:auto;padding:5px 10px;font-size:12px;margin-left:6px;">Từ chối</button>
+                                `
+                                : ""
+                            }
                             <button class="btn btn-sm btn-primary" data-open-req="${r.id}" style="width:auto;padding:6px 14px;">
                               Xem chi tiết & Xử lý
                             </button>
@@ -486,6 +549,33 @@ function renderAdminOverviewPage(el) {
                   Chưa có thông báo hoặc yêu cầu nào từ giáo viên.
                 </div>`
           }
+        </div>
+      </div>
+
+      <!-- 4b. DIV QUẢN LÝ LIÊN KẾT PHỤ HUYNH - HỌC SINH (MỚI) -->
+      <div class="overview-panel" id="overview-parentlinks">
+        <div class="panel-head-overview">
+          <div class="panel-title-group">
+            <span class="panel-icon-wrap" style="background:#e6f8f0;color:#0d8a5f;">${ICONS.school}</span>
+            <div>
+              <h2 class="panel-title">Quản lý Liên kết Phụ huynh - Học sinh</h2>
+              <span class="count-chip" id="chip-parentlinks-count"></span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn-quick-add" id="btn-add-parent-link">
+              ${ICONS.plus}
+              <span>Liên kết phụ huynh</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 18px 24px;">
+          <p class="muted" style="font-size:13px;margin-bottom:12px;">
+            Mỗi tài khoản Phụ huynh chỉ được liên kết với đúng 1 học sinh (con). Học sinh đã có phụ huynh
+            sẽ không xuất hiện trong danh sách chọn khi tạo liên kết mới.
+          </p>
+          <div class="table-wrap" id="parentlinks-table-container"></div>
         </div>
       </div>
 
@@ -646,14 +736,17 @@ function renderAdminOverviewPage(el) {
     </div>
   `;
 
-  // Thiết lập tính năng cuộn mượt và kích hoạt active cho thanh Jump Bar
-  setupJumpBar(el);
+  // Cập nhật số thông báo (badge) trên menu Sidebar
+  updateAdminSidebarBadges(el.closest('.app-shell'), sidebarCounts);
 
   // Render bảng Quản lý tài khoản
   setupAccountsSection(el, allUsers);
 
   // Render bảng Quản lý lớp học
   setupClassesSection(el, allClasses);
+
+  // Render bảng Quản lý liên kết Phụ huynh - Học sinh (MỚI)
+  setupParentLinksSection(el);
 
   // Setup các sự kiện nút Xem chi tiết cho từng bảng thông tin
   setupDetailButtons(el, { overview, allUsers, allClasses, requests, subjects, weekdayCounts });
@@ -695,11 +788,14 @@ function setupAccountsSection(el, initialUsers) {
     const q = (searchInput?.value || "").trim().toLowerCase();
     const role = roleSelect?.value || "";
     const status = statusSelect?.value || "";
+    const linkFilter = (el.querySelector("#acc-link-select")?.value || "");
 
     return initialUsers.filter((u) => {
       if (role && u.role !== role) return false;
       if (status === "active" && !u.active) return false;
       if (status === "inactive" && u.active) return false;
+      if (linkFilter === "linked" && !(u.role === "parent" && u.studentId)) return false;
+      if (linkFilter === "unlinked" && !(u.role === "parent" && !u.studentId)) return false;
       if (q) {
         const matchesName = (u.fullName || "").toLowerCase().includes(q);
         const matchesUser = (u.username || "").toLowerCase().includes(q);
@@ -826,6 +922,7 @@ function setupAccountsSection(el, initialUsers) {
   searchInput?.addEventListener("input", renderTable);
   roleSelect?.addEventListener("change", renderTable);
   statusSelect?.addEventListener("change", renderTable);
+  el.querySelector("#acc-link-select")?.addEventListener("change", renderTable);
 
   renderTable();
 }
@@ -880,16 +977,22 @@ function setupClassesSection(el, allClasses) {
   const searchInput = el.querySelector("#cls-search-input");
   const subjectSelect = el.querySelector("#cls-subject-select");
   const statusSelect = el.querySelector("#cls-status-select");
+  const teacherSelect = el.querySelector("#cls-teacher-select");
+  const weekdaySelect = el.querySelector("#cls-weekday-select");
   const countChip = el.querySelector("#chip-classes-count");
 
   function getFilteredList() {
     const q = (searchInput?.value || "").trim().toLowerCase();
     const subject = subjectSelect?.value || "";
     const status = statusSelect?.value || "";
+    const teacher = teacherSelect?.value || "";
+    const weekday = Number(weekdaySelect?.value || "") || 0;
 
     return allClasses.filter((c) => {
       if (subject && c.subject !== subject) return false;
       if (status && c.status !== status) return false;
+      if (teacher && c.teacherId !== teacher) return false;
+      if (weekday && !Array.isArray(c.schedule) ? false : !c.schedule.some((s) => s.dayOfWeek === weekday)) return false;
       if (q) {
         const matchesName = (c.className || "").toLowerCase().includes(q);
         const matchesTeacher = (c.teacherName || "").toLowerCase().includes(q);
@@ -985,8 +1088,188 @@ function setupClassesSection(el, allClasses) {
   searchInput?.addEventListener("input", renderTable);
   subjectSelect?.addEventListener("change", renderTable);
   statusSelect?.addEventListener("change", renderTable);
+  teacherSelect?.addEventListener("change", renderTable);
+  weekdaySelect?.addEventListener("change", renderTable);
 
   renderTable();
+}
+
+// =============================================================================
+// QUẢN LÝ LIÊN KẾT PHỤ HUYNH - HỌC SINH (MỚI CHO ADMIN)
+// =============================================================================
+function setupParentLinksSection(el) {
+  const container = el.querySelector("#parentlinks-table-container");
+  const countChip = el.querySelector("#chip-parentlinks-count");
+  const btnAdd = el.querySelector("#btn-add-parent-link");
+
+  function loadParents() {
+    return DB.getAll("users").filter((u) => u.role === "parent");
+  }
+
+  function renderTable() {
+    const parents = loadParents();
+    if (countChip) countChip.textContent = `${parents.length} tài khoản phụ huynh`;
+
+    if (!parents.length) {
+      container.innerHTML = `<div class="empty" style="padding:28px;text-align:center;color:var(--muted);">Chưa có tài khoản phụ huynh nào.</div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Phụ huynh</th><th>Tài khoản</th><th>Email</th><th>Học sinh liên kết</th><th style="text-align:right;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${parents
+            .map(
+              (p, i) => {
+                const student = getLinkedStudent(p.id);
+                return `
+                  <tr data-parent-row="${p.id}">
+                    <td>${i + 1}</td>
+                    <td><strong>${escapeHtml(p.fullName)}</strong></td>
+                    <td><span class="badge" style="background:#f4efff;color:#5e1bd6;">@${escapeHtml(p.username)}</span></td>
+                    <td>${escapeHtml(p.email || "—")}</td>
+                    <td>
+                      ${student
+                        ? `<div>
+                            <strong>${escapeHtml(student.fullName)}</strong>
+                            <span class="badge student">Mã HS: ${student.id}</span>
+                            <span class="muted">(@${escapeHtml(student.username)} · ${escapeHtml(student.email || "")})</span>
+                          </div>`
+                        : `<span class="muted">Chưa liên kết học sinh nào</span>`}
+                    </td>
+                    <td class="actions" style="text-align:right;">
+                      ${student
+                        ? `<button class="btn btn-sm btn-warn" data-pl-unlink="${p.id}" title="Hủy liên kết">${ICONS.close}</button>
+                           <button class="btn btn-sm btn-primary" data-pl-change="${p.id}" title="Thay đổi học sinh">${ICONS.edit}</button>`
+                        : `<button class="btn btn-sm btn-primary" data-pl-link="${p.id}" title="Liên kết">${ICONS.plus}</button>`}
+                    </td>
+                  </tr>`;
+              }
+            )
+            .join("")}
+        </tbody>
+      </table>`;
+
+    container.querySelectorAll("[data-pl-link]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const parent = loadParents().find((p) => p.id === btn.dataset.plLink);
+        if (parent) openParentLinkModal(parent, el, () => renderTable());
+      });
+    });
+
+    container.querySelectorAll("[data-pl-change]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const parent = loadParents().find((p) => p.id === btn.dataset.plChange);
+        if (parent) openParentLinkModal(parent, el, () => renderTable());
+      });
+    });
+
+    container.querySelectorAll("[data-pl-unlink]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const parent = loadParents().find((p) => p.id === btn.dataset.plUnlink);
+        const student = getLinkedStudent(parent.id);
+        if (
+          !parent ||
+          !student ||
+          !confirm(`Bạn chắc chắn muốn hủy liên kết "${escapeHtml(parent.fullName)}" với học sinh "${escapeHtml(student.fullName)}"?`)
+        )
+          return;
+        try {
+          unlinkParent(parent.id);
+          renderTable();
+          flash(el, `Đã hủy liên kết phụ huynh ${escapeHtml(parent.fullName)}.`);
+        } catch (e) {
+          flash(el, e.message, "error");
+        }
+      });
+    });
+
+    // Đồng bộ badge menu Sidebar cho mục Liên kết PH - HS
+    updateAdminSidebarBadges(el.closest('.app-shell'), {
+      parentlinks: loadParents().filter((p) => !getLinkedStudent(p.id)).length,
+    });
+  }
+
+  btnAdd?.addEventListener("click", () => {
+    const unlinkedParents = loadParents().filter((p) => !getLinkedStudent(p.id));
+    if (!unlinkedParents.length) {
+      flash(el, "Tất cả phụ huynh hiện đã được liên kết học sinh.");
+      return;
+    }
+    openParentLinkModal(unlinkedParents[0], el, () => renderTable());
+  });
+
+  renderTable();
+}
+
+function openParentLinkModal(parent, el, onSaved) {
+  const currentStudent = getLinkedStudent(parent.id);
+  const available = listStudentsAvailableForLink();
+  const options = currentStudent ? [...available, currentStudent] : available;
+
+  openModal({
+    title: currentStudent
+      ? `Thay đổi học sinh liên kết · ${escapeHtml(parent.fullName)}`
+      : `Liên kết học sinh · ${escapeHtml(parent.fullName)}`,
+    size: "modal-lg",
+    body: `
+      <p class="muted">
+        Phụ huynh: <strong>${escapeHtml(parent.fullName)}</strong> (@${escapeHtml(parent.username)}) · Email: ${escapeHtml(parent.email || "—")}
+      </p>
+      <div class="modal-form">
+        <div>
+          <label for="pl-student-id">Chọn học sinh (con) *</label>
+          <select id="pl-student-id" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+            <option value="">-- Chọn học sinh --</option>
+            ${options
+              .map(
+                (s) => `<option value="${s.id}" ${currentStudent && s.id === currentStudent.id ? "selected" : ""}>
+                  ${escapeHtml(s.fullName)} · Mã HS: ${s.id} (@${escapeHtml(s.username)})
+                </option>`
+              )
+              .join("")}
+          </select>
+        </div>
+        <p class="muted" style="font-size:12px;">
+          ${currentStudent ? "Hệ thống sẽ hủy liên kết cũ trước khi gán học sinh mới." : "Mỗi học sinh chỉ được liên kết 1 tài khoản phụ huynh."}
+        </p>
+      </div>
+      <p class="form-error" id="pl-error" role="alert" hidden></p>
+    `,
+    foot: `<button class="btn" data-close>Hủy</button><button class="btn btn-primary" id="pl-save">Lưu liên kết</button>`,
+    onMount: (root, close) => {
+      root.querySelector("#pl-save").addEventListener("click", () => {
+        const err = root.querySelector("#pl-error");
+        err.hidden = true;
+        const studentId = root.querySelector("#pl-student-id").value;
+        if (!studentId) {
+          err.textContent = "Vui lòng chọn học sinh để liên kết.";
+          err.hidden = false;
+          return;
+        }
+        try {
+          if (currentStudent && studentId === currentStudent.id) {
+            close();
+            onSaved();
+            return;
+          }
+          if (currentStudent) unlinkParent(parent.id);
+          linkParentToStudent(parent.id, studentId);
+          close();
+          onSaved();
+          flash(el, `Đã liên kết ${escapeHtml(parent.fullName)} với học sinh ${escapeHtml(DB.findById("users", studentId).fullName)}.`);
+        } catch (e) {
+          err.textContent = e.message;
+          err.hidden = false;
+        }
+      });
+    },
+  });
 }
 
 // =============================================================================
@@ -996,6 +1279,10 @@ function setupClassesSection(el, allClasses) {
 function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subjects, weekdayCounts }) {
   // 1. Xem chi tiết chỉ số KPI
   el.querySelector("#btn-detail-kpi")?.addEventListener("click", () => {
+    const enrollments = DB.getAll("enrollments");
+    const uniqueStudents = new Set(
+      enrollments.filter((e) => e.status === "active").map((e) => e.studentId)
+    ).size;
     openModal({
       title: "Chi tiết Chỉ số Hoạt động Toàn Trung tâm",
       size: "modal-lg",
@@ -1022,6 +1309,7 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
           <h4 style="margin:10px 0 4px;font-size:15px;color:var(--brand-ink);">Thống kê sĩ số và tỷ lệ đáp ứng</h4>
           ${infoRow("Tổng chỉ tiêu tiếp nhận (Slots)", `${allClasses.reduce((s, c) => s + (c.maxSlot || 0), 0)} học sinh`)}
           ${infoRow("Số lượng học sinh đã vào lớp", `${allClasses.reduce((s, c) => s + (c.enrolled || 0), 0)} lượt học sinh`)}
+          ${infoRow("Học sinh đã đăng ký ít nhất 1 lớp", `${uniqueStudents} học sinh (${overview.totalStudents} tài khoản HS)`)}
           ${infoRow("Tỷ lệ lấp đầy trung bình", `${pct(allClasses.reduce((s, c) => s + (c.enrolled || 0), 0), allClasses.reduce((s, c) => s + (c.maxSlot || 0), 0))}%`)}
           ${infoRow("Tỷ lệ tài khoản hoạt động", `${pct(allUsers.filter((u) => u.active).length, allUsers.length)}% (${allUsers.filter((u) => u.active).length}/${allUsers.length})`)}
           ${infoRow("Số lượng yêu cầu từ giáo viên", `${requests.length} yêu cầu (${requests.filter((r) => r.status === "pending").length} chờ duyệt)`)}
@@ -1313,6 +1601,35 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
       }
     })
   );
+
+  // Phê duyệt / từ chối ngay tại chỗ từ danh sách thông báo (không cần vào modal chi tiết)
+  el.querySelectorAll("[data-req-approve]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      try {
+        approveClassRequest(btn.dataset.reqApprove);
+        renderAdminOverviewPage(el);
+        flash(el, "Đã phê duyệt yêu cầu của giáo viên.");
+      } catch (e) {
+        flash(el, e.message, "error");
+      }
+    })
+  );
+
+  el.querySelectorAll("[data-req-reject]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const reason = prompt("Nhập lý do từ chối (bỏ trống nếu không có):") || "";
+      try {
+        rejectClassRequest(btn.dataset.reqReject);
+        renderAdminOverviewPage(el);
+        flash(
+          el,
+          "Đã từ chối yêu cầu của giáo viên." + (reason ? ` Lý do: ${reason}` : "")
+        );
+      } catch (e) {
+        flash(el, e.message, "error");
+      }
+    })
+  );
 }
 
 // =============================================================================
@@ -1357,26 +1674,73 @@ function setupQuickActions(el) {
     flash(el, "Đã làm mới toàn bộ dữ liệu tổng quan.");
   });
 
-  // Khôi phục dữ liệu gốc mẫu (Reset Seed)
+  // Khôi phục dữ liệu gốc mẫu (Reset Seed) — xác nhận 2 bước để tránh bấm nhầm
   el.querySelector("#act-reset-seed")?.addEventListener("click", () => {
-    openModal({
-      title: "Xác nhận khôi phục dữ liệu gốc",
-      body: `
-        <p>Bạn có chắc chắn muốn đặt lại cơ sở dữ liệu về trạng thái mẫu ban đầu?</p>
-        <p class="muted">Tất cả thay đổi thử nghiệm sẽ được gán lại dữ liệu chuẩn từ hệ thống seed.</p>`,
-      foot: `
-        <button class="btn" data-close>Hủy</button>
-        <button class="btn btn-danger" id="confirm-reset-seed">Khôi phục gốc</button>`,
-      onMount: (root, close) => {
-        root.querySelector("#confirm-reset-seed").addEventListener("click", () => {
-          localStorage.clear();
-          seedDatabase();
-          close();
-          renderAdminOverviewPage(el);
-          flash(el, "Đã khôi phục dữ liệu mẫu ban đầu thành công.");
-        });
-      },
-    });
+    openResetSeedFlow(el);
+  });
+}
+
+/**
+ * Khôi phục dữ liệu gốc: Bước 1 - Cảnh báo conséquences.
+ */
+function openResetSeedFlow(el) {
+  openModal({
+    title: "Cảnh báo: Khôi phục dữ liệu gốc",
+    body: `
+      <p style="color:#c0392b;font-weight:700;margin:0 0 10px;">⚠ Hành động này sẽ XÓA TRÊN TẤT CẢ dữ liệu hiện có.</p>
+      <ul style="color:var(--muted);margin:0 0 12px;padding-left:20px;font-size:13px;">
+        <li>Tất cả tài khoản, lớp học, đăng ký học, điểm số, điểm danh đã tạo thử nghiệm sẽ bị mất vĩnh viễn.</li>
+        <li>Dữ liệu sẽ được đặt lại về mẫu chuẩn ban đầu từ hệ thống seed (bao gồm tài khoản demo mới).</li>
+        <li>Bạn sẽ bị đăng xuất và quay về trang đăng nhập ngay sau khi khôi phục.</li>
+      </ul>
+      <p class="muted" style="font-size:12px;">Hành động không thể hoàn tác.</p>`,
+    foot: `<button class="btn" data-close>Hủy</button><button class="btn btn-primary" id="reset-confirm-step1">Tôi hiểu, tiếp tục</button>`,
+    onMount: (root, close) => {
+      root.querySelector("#reset-confirm-step1").addEventListener("click", () => {
+        close();
+        openResetSeedConfirm(el);
+      });
+    },
+  });
+}
+
+/**
+ * Khôi phục dữ liệu gốc: Bước 2 - Yêu cầu gõ mã xác nhận "KHÔI PHỤC".
+ */
+function openResetSeedConfirm(el) {
+  openModal({
+    title: "Xác nhận cuối cùng",
+    body: `
+      <p style="margin:0 0 10px;">Để xác nhận, vui lòng gõ chính xác từ khoá <strong>KHÔI PHỤC</strong> vào ô dưới đây.</p>
+      <div class="modal-form">
+        <input id="reset-confirm-code" type="text" placeholder="KHÔI PHỤC" />
+      </div>
+      <p class="form-error" id="reset-confirm-error" role="alert" hidden></p>`,
+    foot: `<button class="btn" data-close>Hủy</button><button class="btn btn-danger" id="reset-confirm-final" disabled>Khôi phục dữ liệu gốc</button>`,
+    onMount: (root, close) => {
+      const input = root.querySelector("#reset-confirm-code");
+      const btn = root.querySelector("#reset-confirm-final");
+      const err = root.querySelector("#reset-confirm-error");
+
+      const enable = () => {
+        btn.disabled = input.value.trim() !== "KHÔI PHỤC";
+        err.hidden = true;
+      };
+      input.addEventListener("input", enable);
+
+      btn.addEventListener("click", () => {
+        if (input.value.trim() !== "KHÔI PHỤC") {
+          err.textContent = "Vui lòng gõ đúng từ khoá KHÔI PHỤC.";
+          err.hidden = false;
+          return;
+        }
+        localStorage.clear();
+        Session.logout();
+        seedDatabase();
+        close();
+        Router.navigate("/login");
+      });
+    },
   });
 }
 
