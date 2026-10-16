@@ -194,64 +194,55 @@ function renderTeacherOverviewPage(el, teacher) {
 
     <div class="overview-dashboard" id="tab-overview" data-page="giao-vien">
 
-      <!-- Banner chào mừng giáo viên -->
+      <!-- Banner chào mừng -->
       <div class="welcome-banner">
         <div>
-          <h2 class="welcome-title">Xin chào, Thầy/Cô ${escapeHtml(teacher.fullName)}!</h2>
-          <p class="welcome-sub">
-            Bộ môn phụ trách: <strong>${subjectLabel(teacher.subject)}</strong> · Hôm nay: ${formatDate(todayStr())}
-          </p>
+          <h2 class="welcome-title">Trung tâm Dạy học BTM · Tổng quan</h2>
+          <p class="welcome-sub">Hôm nay: ${formatDate(todayStr())}</p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
+          <span class="badge active" style="font-size:13px;padding:6px 14px;">● Hệ thống đang hoạt động</span>
           <button class="btn btn-sm btn-primary" id="btn-quick-new-session" style="width:auto;padding:8px 16px;">
             ${ICONS.plus} Thêm buổi học mới
           </button>
         </div>
       </div>
 
-      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
+      <!-- Thanh điều hướng -->
       <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
+        <span class="jump-label">${ICONS.grid} Mục nhanh:</span>
         <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số giảng dạy</span>
+          <span>Chỉ số</span>
         </a>
         <a class="jump-pill" href="#overview-schedule">
-          <span>Lịch dạy tuần này</span>
-          <span class="jump-badge">${weekClasses.length} lớp</span>
+          <span>Lịch dạy</span>
         </a>
         <a class="jump-pill" href="#overview-classes">
-          <span>Lớp học của tôi</span>
-          <span class="jump-badge">${myClasses.length}</span>
+          <span>Lớp học</span>
         </a>
         <a class="jump-pill" href="#overview-sessions">
-          <span>Buổi học & Điểm danh</span>
-          <span class="jump-badge">${allSessions.length}</span>
+          <span>Buổi học</span>
         </a>
         <a class="jump-pill" href="#overview-grading">
           <span>Điểm & Nhận xét</span>
         </a>
         <a class="jump-pill" href="#overview-requests">
-          <span>Yêu cầu gửi Admin</span>
-          ${
-            pendingRequests.length
-              ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingRequests.length}</span>`
-              : `<span class="jump-badge">0</span>`
-          }
+          <span>Yêu cầu Admin</span>
         </a>
       </div>
 
-      <!-- 1. DIV CHỈ SỐ GIẢNG DẠY (KPI) -->
+      <!-- 1. DIV CHỈ SỐ TỔNG QUAN & KPI -->
       <div class="overview-panel" id="overview-kpis">
         <div class="panel-head-overview">
           <div class="panel-title-group">
             <span class="panel-icon-wrap">${ICONS.grid}</span>
             <div>
-              <h2 class="panel-title">Chỉ số Giảng dạy & Hoạt động</h2>
-              <span class="muted" style="font-size:12px;">Tổng hợp số liệu giảng dạy của Thầy/Cô</span>
+              <h2 class="panel-title">Chỉ số Hoạt động Tổng quan</h2>
+              <span class="muted" style="font-size:12px;">Tổng hợp dữ liệu toàn trung tâm theo thời gian thực</span>
             </div>
           </div>
           <div class="panel-actions">
-            <button class="btn-view-detail" id="btn-detail-teacher-kpi">
+            <button class="btn-view-detail" id="btn-detail-kpi">
               ${ICONS.eye}
               <span>Xem chi tiết chỉ số</span>
             </button>
@@ -259,34 +250,34 @@ function renderTeacherOverviewPage(el, teacher) {
         </div>
         <div style="padding: 20px 24px;">
           <div class="kpi-row">
-            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
-              <div class="kpi-icon">${ICONS.classes}</div>
-              <div class="kpi-content">
-                <span class="kpi-val">${myClasses.length}</span>
-                <span class="kpi-tit">Lớp phụ trách</span>
-                <span class="kpi-sub">${myClasses.filter((c) => c.status === "open").length} lớp đang mở</span>
-              </div>
-            </div>
-
             <div class="kpi-card" style="--kpi-color:#0d8a5f;--kpi-bg:#e6f8f0;">
               <div class="kpi-icon">${ICONS.users}</div>
               <div class="kpi-content">
                 <span class="kpi-val">${overview.totalStudents}</span>
-                <span class="kpi-tit">Tổng số học sinh</span>
-                <span class="kpi-sub">Đang theo học các lớp</span>
+                <span class="kpi-tit">Học sinh</span>
+                <span class="kpi-sub">${overview.totalActiveStudents} đang học · ${overview.totalStudents - overview.totalActiveStudents} đã khóa</span>
               </div>
             </div>
 
             <div class="kpi-card" style="--kpi-color:#6a1bff;--kpi-bg:#f2ecff;">
-              <div class="kpi-icon">${ICONS.calendar}</div>
+              <div class="kpi-icon">${ICONS.school}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${allSessions.length}</span>
-                <span class="kpi-tit">Buổi học đã tạo</span>
-                <span class="kpi-sub">${upcomingSessions.length} buổi sắp diễn ra</span>
+                <span class="kpi-val">${myClasses.length}</span>
+                <span class="kpi-tit">Lớp học phụ trách</span>
+                <span class="kpi-sub">${myClasses.filter((c) => c.status === "open").length} lớp đang mở</span>
               </div>
             </div>
 
-            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
+            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
+              <div class="kpi-icon">${ICONS.bell}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${pendingRequests.length}</span>
+                <span class="kpi-tit">Yêu cầu chờ duyệt</span>
+                <span class="kpi-sub">${myRequests.length} tổng yêu cầu đã gửi</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
               <div class="kpi-icon">${ICONS.check}</div>
               <div class="kpi-content">
                 <span class="kpi-val">${attRate}%</span>
@@ -295,12 +286,12 @@ function renderTeacherOverviewPage(el, teacher) {
               </div>
             </div>
 
-            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
-              <div class="kpi-icon">${ICONS.bell}</div>
+            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
+              <div class="kpi-icon">${ICONS.classes}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${pendingRequests.length}</span>
-                <span class="kpi-tit">Yêu cầu chờ Admin duyệt</span>
-                <span class="kpi-sub">${myRequests.length} tổng yêu cầu đã gửi</span>
+                <span class="kpi-val">${allSessions.length}</span>
+                <span class="kpi-tit">Buổi học đã tạo</span>
+                <span class="kpi-sub">${upcomingSessions.length} buổi sắp diễn ra</span>
               </div>
             </div>
           </div>
@@ -378,6 +369,28 @@ function renderTeacherOverviewPage(el, teacher) {
               ${ICONS.eye}
               <span>Xem chi tiết bảng lớp</span>
             </button>
+          </div>
+        </div>
+
+        <div class="overview-toolbar">
+          <div class="toolbar-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm theo tên lớp, giáo viên..." style="width:calc(100% - 140px)" />
+          </div>
+          <div class="toolbar-filters">
+            <select class="toolbar-select" style="min-width:150px;">
+              <option value="">Tất cả môn học</option>
+              <option value="Toan">Môn Toán</option>
+              <option value="Van">Môn Ngữ Văn</option>
+              <option value="Anh">Môn Tiếng Anh</option>
+            </select>
+            <select class="toolbar-select" style="min-width:150px;">
+              <option value="">Tất cả trạng thái</option>
+              <option value="open">Đang mở</option>
+              <option value="closed">Đã đóng</option>
+            </select>
           </div>
         </div>
 
@@ -471,6 +484,22 @@ function renderTeacherOverviewPage(el, teacher) {
           </div>
         </div>
 
+        <div class="overview-toolbar">
+          <div class="toolbar-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm buổi học..." style="width:calc(100% - 140px)" />
+          </div>
+          <div class="toolbar-filters">
+            <select class="toolbar-select" style="min-width:150px;">
+              <option value="">Tất cả trạng thái</option>
+              <option value="done">Đã điểm danh</option>
+              <option value="inactive">Chưa điểm danh</option>
+            </select>
+          </div>
+        </div>
+
         <div class="table-wrap">
           ${
             allSessions.length
@@ -516,7 +545,7 @@ function renderTeacherOverviewPage(el, teacher) {
                                 ${clsInactive ? "🔒" : ""} Đính kèm tài liệu
                               </button>
                             </td>
-                          </tr>`;
+                          </tr>`
                       }
                     ).join("")}
                   </tbody>
@@ -550,7 +579,7 @@ function renderTeacherOverviewPage(el, teacher) {
           </div>
         </div>
 
-        <div style="padding: 20px 24px;">
+        <div class="overview-toolbar">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
             <label for="grade-class-select" style="font-weight:700;font-size:13.5px;color:var(--brand-ink);">
               Chọn lớp học để xem bảng điểm:
@@ -559,7 +588,9 @@ function renderTeacherOverviewPage(el, teacher) {
               ${myClasses.map((c) => `<option value="${c.id}">${escapeHtml(c.className)} (${c.enrolled} HS)</option>`).join("")}
             </select>
           </div>
+        </div>
 
+        <div style="padding: 20px 24px;">
           <div id="grade-table-view">
             <!-- Bảng điểm động của lớp được chọn -->
           </div>

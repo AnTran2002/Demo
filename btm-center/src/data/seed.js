@@ -295,6 +295,7 @@ const DEFAULT_COMMENTS = [
 
 const DEMO_PENDING_CLASS = {
   id: "c-demo-cho-duyet",
+
   className: "Toán 9D",
   subject: "Toan",
   grade: 9,
