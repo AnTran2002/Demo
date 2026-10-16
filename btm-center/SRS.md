@@ -98,6 +98,8 @@ FR-5.2
 Giáo viên nhập tiêu đề bài học cho buổi
 FR-5.3
 Giáo viên điểm danh từng học sinh: Có mặt / Vắng / Trễ
+FR-5.4
+Khi đổi lịch một buổi học, buổi cũ được thay thế bằng buổi mới; điểm danh cũ bị xóa và tài liệu được giữ liên kết với buổi mới
 
 3.6 Module Tài liệu (M6)
 Mã
@@ -131,7 +133,7 @@ FR-9.1
 Xem tổng số giáo viên, học sinh, lớp học
 Admin
 FR-9.2
-"Lịch giảng dạy": danh sách lớp đang dạy, lịch theo tuần, buổi học sắp tới, trạng thái điểm danh (đã/chưa điểm danh)
+"Lịch giảng dạy": calendar hiển thị buổi học, trạng thái điểm danh (đã/chưa điểm danh); chọn buổi để mở lớp quản lý
 Giáo viên
 FR-9.3
 "Lịch học của tôi": các lớp đã đăng ký, buổi học sắp tới gần nhất
@@ -139,6 +141,9 @@ Học sinh
 FR-9.4
 "Lớp đang mở": danh sách lớp còn chỗ để đăng ký, lọc theo môn, có thể đăng ký nhanh
 Học sinh
+FR-9.5
+Dashboard Giáo viên cung cấp nút quản lý trực tiếp cho từng lớp và bảng điểm theo lớp chỉ hiển thị lớp, môn, nút mở bảng điểm của lớp đó
+Giáo viên
 
 4. YÊU CẦU PHI CHỨC NĂNG
    Mã

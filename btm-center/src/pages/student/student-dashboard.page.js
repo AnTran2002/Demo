@@ -1,6 +1,7 @@
 // pages/student/student-dashboard.page.js — Phụ trách: Thành viên A/C
 // Lịch học (overview + chi tiết lớp: buổi học, tài liệu, điểm, nhận xét) · Đăng ký lớp
 import { Session } from "../../core/session.js";
+import { escapeHtml } from "../../core/html.js";
 import { renderShell, ICONS, formatSchedule } from "../shell.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
 import {
@@ -18,12 +19,14 @@ import { listGradesByStudentInClass } from "../../modules/grades/grades.service.
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
 import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { listStudentsOfClass, getClassById } from "../../modules/classes/classes.service.js";
+import { listUsers } from "../../modules/users/users.service.js";
 import {
   SUBJECTS,
   subjectLabel,
   formatDate,
   todayStr,
   ATTENDANCE_LABELS,
+  WEEKDAYS,
 } from "../../data/constants.js";
 
 const genderBadge = (u) => {
@@ -59,11 +62,196 @@ const myAttBadge = (sessionId, studentId) => {
   return `<span class="badge ${cls}">${ATTENDANCE_LABELS[rec.status]}</span>`;
 };
 
+const pad2 = (n) => String(n).padStart(2, "0");
+const toIso = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const parseIso = (iso) => {
+  const [year, month, day] = String(iso).split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+const dayOfWeekOf = (date) => (date.getDay() === 0 ? 8 : date.getDay() + 1);
+const weekdayLabel = (date) =>
+  WEEKDAYS.find((weekday) => weekday.value === dayOfWeekOf(date))?.label || "";
+
+function monthCells(year, month) {
+  const first = new Date(year, month, 1);
+  const offset = (first.getDay() + 6) % 7;
+  const start = new Date(year, month, 1 - offset);
+  return Array.from(
+    { length: 42 },
+    (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
+  );
+}
+
+function slotOfClass(cls, iso) {
+  const dayOfWeek = dayOfWeekOf(parseIso(iso));
+  return (cls.schedule || []).find((slot) => slot.dayOfWeek === dayOfWeek) || null;
+}
+
+function renderStudentCalendar(el, classes, studentId, calendar) {
+  const today = todayStr();
+  const byDate = new Map();
+  classes.forEach((cls) => {
+    (cls.sessions || []).forEach((session) => {
+      if (!byDate.has(session.date)) byDate.set(session.date, []);
+      byDate.get(session.date).push({ cls, session });
+    });
+  });
+
+  byDate.forEach((items) =>
+    items.sort((a, b) => {
+      const startTime = (item) => slotOfClass(item.cls, item.session.date)?.start || "99:99";
+      return startTime(a).localeCompare(startTime(b));
+    })
+  );
+
+  const cells = monthCells(calendar.y, calendar.m);
+  const hasSessionsThisMonth = cells.some(
+    (date) => date.getMonth() === calendar.m && byDate.has(toIso(date))
+  );
+  const cellHtml = cells
+    .map((date) => {
+      const iso = toIso(date);
+      const items = byDate.get(iso) || [];
+      const cellClasses = ["cal-cell"];
+      if (date.getMonth() !== calendar.m) cellClasses.push("cal-out");
+      if (items.length) cellClasses.push("cal-has");
+      if (iso === today) cellClasses.push("cal-today");
+
+      const chips = items
+        .map((item) => {
+          const slot = slotOfClass(item.cls, iso);
+          const subject = subjectLabel(item.cls.subject);
+          const time = slot ? ` ${slot.start}` : "";
+          return `<button type="button" class="student-cal-chip" data-session-id="${escapeHtml(item.session.id)}" data-day="${iso}" title="Xem chi tiết: ${escapeHtml(item.cls.className)} · ${escapeHtml(subject)}${slot ? ` (${escapeHtml(slot.start)} – ${escapeHtml(slot.end)})` : ""}">
+            ${escapeHtml(subject)}${escapeHtml(time)}
+          </button>`;
+        })
+        .join("");
+
+      return `<div class="${cellClasses.join(" ")}" data-day="${iso}">
+        <span class="cal-num">${date.getDate()}</span>${chips}
+      </div>`;
+    })
+    .join("");
+
+  el.innerHTML = `
+    <div class="panel cal-panel">
+      <div class="cal-head">
+        <div>
+          <h2 class="cal-title">Tháng ${calendar.m + 1}/${calendar.y}</h2>
+          <p class="cal-hint">Chọn buổi học để xem môn học, lớp, giáo viên và thời gian.</p>
+        </div>
+        <div class="cal-nav">
+          <button type="button" class="icon-btn" data-cal="prev" title="Tháng trước" aria-label="Tháng trước">${ICONS.back}</button>
+          <button type="button" class="btn btn-sm" data-cal="today">Hôm nay</button>
+          <button type="button" class="icon-btn cal-next" data-cal="next" title="Tháng sau" aria-label="Tháng sau">${ICONS.back}</button>
+        </div>
+      </div>
+      <div class="cal-grid">
+        ${WEEKDAYS.map((weekday) => `<div class="cal-dow">${weekday.label}</div>`).join("")}
+        ${cellHtml}
+      </div>
+      ${
+        hasSessionsThisMonth
+          ? ""
+          : `<div class="empty student-calendar-empty">${
+              byDate.size
+                ? "Tháng này chưa có buổi học nào."
+                : "Bạn hiện chưa có buổi học nào được xếp lịch."
+            }</div>`
+      }
+    </div>
+  `;
+
+  const move = (delta) => {
+    const next = new Date(calendar.y, calendar.m + delta, 1);
+    calendar.y = next.getFullYear();
+    calendar.m = next.getMonth();
+    renderStudentCalendar(el, classes, studentId, calendar);
+  };
+  el.querySelector('[data-cal="prev"]').addEventListener("click", () => move(-1));
+  el.querySelector('[data-cal="next"]').addEventListener("click", () => move(1));
+  el.querySelector('[data-cal="today"]').addEventListener("click", () => {
+    const now = new Date();
+    calendar.y = now.getFullYear();
+    calendar.m = now.getMonth();
+    renderStudentCalendar(el, classes, studentId, calendar);
+  });
+
+  el.querySelectorAll(".student-cal-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      const items = byDate.get(button.dataset.day) || [];
+      const item = items.find((entry) => entry.session.id === button.dataset.sessionId);
+      if (item) showStudentSessionModal(item.cls, item.session, button.dataset.day, studentId);
+    });
+  });
+}
+
+function showStudentSessionModal(cls, session, iso, studentId) {
+  document.getElementById("student-session-detail-modal")?.remove();
+
+  const slot = slotOfClass(cls, iso);
+  const teacher = listUsers("teacher").find((user) => user.id === cls.teacherId);
+  const attendance = listAttendanceBySession(session.id).find(
+    (record) => record.studentId === studentId
+  );
+  const room = session.room || cls.room;
+  const infoRow = (label, value) =>
+    `<div class="modal-info"><span class="k">${label}</span><span class="v">${value}</span></div>`;
+  const modalHtml = `
+    <div id="student-session-detail-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="student-session-modal-title">
+      <div class="modal">
+        <div class="modal-head">
+          <h2 class="modal-title" id="student-session-modal-title">Chi tiết buổi học</h2>
+          <button type="button" class="icon-btn" data-modal-close aria-label="Đóng">${ICONS.close}</button>
+        </div>
+        <div class="modal-body">
+          ${infoRow("Môn học", escapeHtml(subjectLabel(cls.subject)))}
+          ${infoRow("Lớp học", escapeHtml(cls.className))}
+          ${infoRow("Nội dung", escapeHtml(session.title || "Buổi học"))}
+          ${infoRow("Ngày học", `${weekdayLabel(parseIso(iso))}, ${formatDate(iso)}`)}
+          ${infoRow("Thời gian", slot ? `${escapeHtml(slot.start)} – ${escapeHtml(slot.end)}` : "Chưa cập nhật khung giờ")}
+          ${room ? infoRow("Phòng học", escapeHtml(room)) : ""}
+          ${infoRow("Giáo viên", escapeHtml(teacher?.fullName || "Chưa phân công"))}
+          ${infoRow("Điểm danh", attendance ? escapeHtml(ATTENDANCE_LABELS[attendance.status] || "Chưa cập nhật") : "Chưa điểm danh")}
+        </div>
+        <div class="modal-foot"><button type="button" class="btn btn-primary" data-modal-close>Đóng</button></div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+  const modal = document.getElementById("student-session-detail-modal");
+  const close = () => {
+    modal.remove();
+    document.removeEventListener("keydown", onKeyDown);
+  };
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") close();
+  };
+  document.addEventListener("keydown", onKeyDown);
+  modal.querySelectorAll("[data-modal-close]").forEach((button) =>
+    button.addEventListener("click", close)
+  );
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+}
+
 export function renderStudentDashboard(container) {
   const student = Session.getCurrentUser();
+  const now = new Date();
+  const calendar = { y: now.getFullYear(), m: now.getMonth() };
 
   const tabs = [
-    { id: "overview", label: "Lịch học", icon: ICONS.calendar, active: true, render: renderOverview },
+    {
+      id: "overview",
+      label: "Lịch học",
+      icon: ICONS.calendar,
+      active: true,
+      render: (el, currentStudent) => renderOverview(el, currentStudent, calendar),
+    },
     { id: "enroll", label: "Đăng ký lớp", icon: ICONS.classes, active: false, render: renderEnroll },
   ];
 
@@ -87,8 +275,15 @@ export function renderStudentDashboard(container) {
   switchTab("overview");
 }
 
-function renderOverview(el, student) {
-  const d = getStudentOverview(student.id);
+function renderOverview(el, student, calendar) {
+  let d;
+  try {
+    d = getStudentOverview(student.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    el.innerHTML = `<p class="form-error" role="alert">Không thể tải lịch học: ${escapeHtml(message)}. Vui lòng tải lại trang.</p>`;
+    return;
+  }
 
   const flash = (msg) => {
     let box = el.querySelector("#overview-msg");
@@ -114,6 +309,8 @@ function renderOverview(el, student) {
 
     <p id="overview-msg" class="form-error" role="alert" hidden></p>
     <div class="section-title">Lịch học của tôi</div>
+    <div id="student-calendar"></div>
+    <div class="section-title">Các lớp đang theo học</div>
     ${
       d.myClasses.length
         ? `<div class="class-grid">${d.myClasses.map((c) => myClassCard(c, student.id)).join("")}</div>`
@@ -160,6 +357,8 @@ function renderOverview(el, student) {
     </div>
   `;
 
+  renderStudentCalendar(el.querySelector("#student-calendar"), d.myClasses, student.id, calendar);
+
   el.querySelectorAll("[data-request-cancel]").forEach((btn) =>
     btn.addEventListener("click", () => {
       try {
@@ -173,7 +372,7 @@ function renderOverview(el, student) {
 
   el.querySelectorAll("[data-detail]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      renderClassDetail(el, student, btn.dataset.detail);
+      renderClassDetail(el, student, btn.dataset.detail, calendar);
     })
   );
 }
@@ -213,9 +412,9 @@ const myClassCard = (c, studentId) => {
   </div>`;
 };
 
-function renderClassDetail(el, student, classId) {
+function renderClassDetail(el, student, classId, calendar) {
   const cls = getClassById(classId);
-  if (!cls) return renderOverview(el, student);
+  if (!cls) return renderOverview(el, student, calendar);
 
   const sessions = listSessionsByClass(classId).sort((a, b) => a.date.localeCompare(b.date));
   const grades = listGradesByStudentInClass(classId, student.id);
@@ -321,7 +520,7 @@ function renderClassDetail(el, student, classId) {
   `;
 
   el.querySelector("[data-back]").addEventListener("click", () => {
-    renderOverview(el, student);
+    renderOverview(el, student, calendar);
   });
 }
 

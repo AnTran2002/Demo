@@ -16,9 +16,11 @@ import {
 } from "../../modules/classes/classes.service.js";
 import {
   createSession,
+  replaceSession,
   markAttendance,
   listAttendanceBySession,
   listUpcomingSessionsByClass,
+  listSessionsByClass,
 } from "../../modules/sessions/sessions.service.js";
 import { attachMaterial, listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { addGrade, listGradesByClass } from "../../modules/grades/grades.service.js";
@@ -52,6 +54,109 @@ const attBadge = (sessionId) => {
     : `<span class="badge inactive">Chưa điểm danh</span>`;
 };
 
+const pad2 = (n) => String(n).padStart(2, "0");
+const toIso = (date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const parseIso = (iso) => {
+  const [year, month, day] = String(iso).split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+const dayOfWeekOf = (date) => (date.getDay() === 0 ? 8 : date.getDay() + 1);
+
+function monthCells(year, month) {
+  const first = new Date(year, month, 1);
+  const offset = (first.getDay() + 6) % 7;
+  const start = new Date(year, month, 1 - offset);
+  return Array.from(
+    { length: 42 },
+    (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
+  );
+}
+
+function renderTeacherCalendar(el, classes, calendar, onSessionClick, upcomingOnly = false) {
+  const sessionsByDate = new Map();
+  const today = todayStr();
+  classes.forEach((cls) => {
+    listSessionsByClass(cls.id).forEach((session) => {
+      if (upcomingOnly && session.date < today) return;
+      if (!sessionsByDate.has(session.date)) sessionsByDate.set(session.date, []);
+      const slot = (cls.schedule || []).find(
+        (item) => item.dayOfWeek === dayOfWeekOf(parseIso(session.date))
+      );
+      sessionsByDate.get(session.date).push({ cls, session, slot });
+    });
+  });
+  sessionsByDate.forEach((items) =>
+    items.sort((a, b) =>
+      (a.slot?.start || "99:99").localeCompare(b.slot?.start || "99:99")
+    )
+  );
+
+  const cells = monthCells(calendar.y, calendar.m);
+  const hasSessionsThisMonth = cells.some(
+    (date) =>
+      date.getMonth() === calendar.m &&
+      (sessionsByDate.get(toIso(date)) || []).length > 0
+  );
+  const cellHtml = cells
+    .map((date) => {
+      const iso = toIso(date);
+      const items = sessionsByDate.get(iso) || [];
+      const classesForCell = ["cal-cell"];
+      if (date.getMonth() !== calendar.m) classesForCell.push("cal-out");
+      if (items.length) classesForCell.push("cal-has");
+      if (iso === today) classesForCell.push("cal-today");
+      const chips = items
+        .slice(0, 3)
+        .map(({ cls, session, slot }) => {
+          const label = `${slot ? `${slot.start} ` : ""}${cls.className}`;
+          return `<button type="button" class="student-cal-chip" data-session="${escapeHtml(session.id)}" data-class="${escapeHtml(cls.id)}" title="${escapeHtml(`${label} · ${session.title || "Buổi học"} · ${session.date} · ${sessionAttendanceInfo(session.id).done ? "Đã điểm danh" : "Chưa điểm danh"}`)}">${escapeHtml(label)}</button>`;
+        })
+        .join("");
+      return `<div class="${classesForCell.join(" ")}"><span class="cal-num">${date.getDate()}</span>${chips}${items.length > 3 ? `<span class="cal-more">+${items.length - 3} buổi</span>` : ""}</div>`;
+    })
+    .join("");
+
+  el.innerHTML = `
+    <div class="panel cal-panel">
+      <div class="cal-head">
+        <div>
+          <h2 class="cal-title">Tháng ${calendar.m + 1}/${calendar.y}</h2>
+          <p class="cal-hint">Chọn buổi học để mở trực tiếp lớp và quản lý buổi học.</p>
+        </div>
+        <div class="cal-nav">
+          <button type="button" class="icon-btn" data-cal="prev" title="Tháng trước" aria-label="Tháng trước">${ICONS.back}</button>
+          <button type="button" class="btn btn-sm" data-cal="today">Hôm nay</button>
+          <button type="button" class="icon-btn cal-next" data-cal="next" title="Tháng sau" aria-label="Tháng sau">${ICONS.back}</button>
+        </div>
+      </div>
+      <div class="cal-grid">
+        ${WEEKDAYS.map((weekday) => `<div class="cal-dow">${weekday.label}</div>`).join("")}
+        ${cellHtml}
+      </div>
+      ${hasSessionsThisMonth ? "" : `<div class="empty student-calendar-empty">${upcomingOnly ? "Tháng này chưa có buổi học sắp tới." : "Tháng này chưa có buổi học nào."}</div>`}
+    </div>
+  `;
+
+  const moveMonth = (delta) => {
+    const next = new Date(calendar.y, calendar.m + delta, 1);
+    calendar.y = next.getFullYear();
+    calendar.m = next.getMonth();
+    renderTeacherCalendar(el, classes, calendar, onSessionClick, upcomingOnly);
+  };
+  el.querySelector('[data-cal="prev"]').addEventListener("click", () => moveMonth(-1));
+  el.querySelector('[data-cal="next"]').addEventListener("click", () => moveMonth(1));
+  el.querySelector('[data-cal="today"]').addEventListener("click", () => {
+    const now = new Date();
+    calendar.y = now.getFullYear();
+    calendar.m = now.getMonth();
+    renderTeacherCalendar(el, classes, calendar, onSessionClick, upcomingOnly);
+  });
+  el.querySelectorAll("[data-session]").forEach((button) =>
+    button.addEventListener("click", () => onSessionClick(button.dataset.class))
+  );
+}
+
 const materialLink = (m) => {
   const isUrl = String(m.fileData).startsWith("http");
   const target = isUrl ? m.fileData : m.fileData.startsWith("data:") ? m.fileData : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
@@ -62,10 +167,12 @@ const materialLink = (m) => {
 
 export function renderTeacherDashboard(container) {
   const teacher = Session.getCurrentUser();
+  const now = new Date();
+  const calendar = { y: now.getFullYear(), m: now.getMonth() };
 
   const tabs = [
-    { id: "overview", label: "Tổng quan", icon: ICONS.grid, active: true, render: renderOverview },
-    { id: "schedule", label: "Lịch giảng dạy", icon: ICONS.calendar, active: false, render: renderSchedule },
+    { id: "overview", label: "Tổng quan", icon: ICONS.grid, active: true, render: (el) => renderOverview(el, teacher, openClass, calendar) },
+    { id: "schedule", label: "Lịch giảng dạy", icon: ICONS.calendar, active: false, render: (el) => renderSchedule(el, teacher, openClass, calendar) },
     { id: "classes", label: "Lớp của tôi", icon: ICONS.classes, active: false, render: goClassesTab },
   ];
 
@@ -77,6 +184,14 @@ export function renderTeacherDashboard(container) {
   function goTab(name, classId, sessionId) {
     subView = { name, classId, sessionId };
     goClassesTab(content, teacher);
+  }
+
+  function openClass(classId, focusGrades = false) {
+    switchTab("classes");
+    goTab("detail", classId, null);
+    if (focusGrades) {
+      content.querySelector("#class-grades")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   function goClassesTab(el, teacher) {
@@ -110,12 +225,8 @@ export function renderTeacherDashboard(container) {
   switchTab("overview");
 }
 
-function renderOverview(el, teacher) {
+function renderOverview(el, teacher, openClass, calendar) {
   const d = getTeacherOverview(teacher.id);
-  const upcoming = d.classes
-    .map((c) => ({ ...c, next: c.nextSession }))
-    .filter((c) => c.next)
-    .sort((a, b) => a.next.date.localeCompare(b.next.date));
 
   el.innerHTML = `
     <div class="welcome-banner">
@@ -129,30 +240,12 @@ function renderOverview(el, teacher) {
     <div class="stat-grid">
       ${statCard(ICONS.classes, d.totalClasses, "Lớp đang dạy")}
       ${statCard(ICONS.school, d.totalStudents, "Học sinh đang theo")}
-      ${statCard(ICONS.calendar, upcoming.length, "Buổi học sắp tới")}
+      ${statCard(ICONS.calendar, d.classes.reduce((count, c) => count + listUpcomingSessionsByClass(c.id, todayStr()).length, 0), "Buổi học sắp tới")}
     </div>
 
     <div class="panel mt-lg">
-      <div class="panel-head">
-        <h2 class="panel-title">Buổi học sắp tới</h2>
-        <a class="link-primary" href="#" data-go="schedule">Xem lịch giảng dạy</a>
-      </div>
-      ${
-        upcoming.length
-          ? upcoming
-              .map(
-                (c) => `
-                  <div class="row-item">
-                    <div>
-                      <strong class="row-title">${c.className} · ${formatDate(c.next.date)} ${attBadge(c.next.id)}</strong>
-                      <span class="row-sub">${c.next.title || "—"} · <span class="badge subject">${subjectLabel(c.subject)}</span></span>
-                    </div>
-                    <span class="row-end muted">${c.enrolled}/${c.maxSlot} HS</span>
-                  </div>`
-              )
-              .join("")
-          : `<div class="empty">Bạn chưa có buổi học nào sắp tới — hãy tạo buổi học ở mục “Lớp của tôi”.</div>`
-      }
+      <div class="panel-head"><h2 class="panel-title">Buổi học sắp tới</h2></div>
+      <div id="teacher-overview-calendar"></div>
     </div>
 
     <div class="panel mt-lg">
@@ -163,7 +256,7 @@ function renderOverview(el, teacher) {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Tên lớp</th><th>Môn</th><th>Sĩ số</th><th>Lịch học</th><th>Trạng thái</th></tr>
+            <tr><th>Tên lớp</th><th>Môn</th><th>Sĩ số</th><th>Lịch học</th><th>Trạng thái</th><th>Thao tác</th></tr>
           </thead>
           <tbody>
             ${d.classes
@@ -180,6 +273,7 @@ function renderOverview(el, teacher) {
                     </td>
                     <td class="muted">${formatSchedule(c.schedule)}</td>
                     <td><span class="badge ${c.status === "open" ? "open" : "closed"}">${c.status === "open" ? "Đang mở" : "Đã đóng"}</span></td>
+                    <td><button class="btn btn-sm btn-primary" data-manage-class="${escapeHtml(c.id)}">Quản lý lớp</button></td>
                   </tr>`
               )
               .join("")}
@@ -192,28 +286,17 @@ function renderOverview(el, teacher) {
     <div class="panel mt-lg">
       <div class="panel-head">
         <h2 class="panel-title">Bảng điểm theo lớp</h2>
-        <span class="count-chip">${d.classes.reduce((s, c) => s + listGradesByClass(c.id).length, 0)} cột điểm</span>
       </div>
       ${
         d.classes.length
           ? `<div class="table-wrap"><table>
-              <thead>
-                <tr><th>Lớp</th><th>Môn</th><th>Sĩ số</th><th>HS đã chấm điểm</th><th>Số cột điểm</th><th>Điểm TBC</th></tr>
-              </thead>
+              <thead><tr><th>Lớp</th><th>Môn</th><th>Thao tác</th></tr></thead>
               <tbody>${d.classes
-                .map((c) => {
-                  const gs = listGradesByClass(c.id);
-                  const scored = new Set(gs.map((g) => g.studentId)).size;
-                  const avg = gs.length ? gs.reduce((s, g) => s + g.score, 0) / gs.length : null;
-                  return `<tr>
+                .map((c) => `<tr>
                     <td><strong>${c.className}</strong></td>
                     <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
-                    <td>${c.enrolled}</td>
-                    <td>${scored}/${c.enrolled}</td>
-                    <td>${gs.length}</td>
-                    <td><strong>${avg !== null ? avg.toFixed(1) : "—"}</strong></td>
-                  </tr>`;
-                })
+                    <td><button class="btn btn-sm btn-primary" data-class-grades="${escapeHtml(c.id)}">Xem bảng điểm</button></td>
+                  </tr>`)
                 .join("")}</tbody>
             </table></div>`
           : `<div class="empty">Chưa có lớp nào nên chưa có bảng thống kê điểm.</div>`
@@ -221,71 +304,38 @@ function renderOverview(el, teacher) {
     </div>
   `;
 
-  el.querySelectorAll("[data-go]").forEach((a) =>
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      el.closest("#app").querySelector(`.nav-item[data-tab="${a.dataset.go}"]`)?.click();
-    })
+  renderTeacherCalendar(
+    el.querySelector("#teacher-overview-calendar"),
+    d.classes,
+    calendar,
+    (classId) => openClass(classId),
+    true
+  );
+  el.querySelectorAll("[data-manage-class]").forEach((button) =>
+    button.addEventListener("click", () => openClass(button.dataset.manageClass))
+  );
+  el.querySelectorAll("[data-class-grades]").forEach((button) =>
+    button.addEventListener("click", () => openClass(button.dataset.classGrades, true))
   );
 }
 
-function renderSchedule(el, teacher) {
+function renderSchedule(el, teacher, openClass, calendar) {
   const classes = getTeacherWeekSchedule(teacher.id);
 
-  const allUpcoming = classes
-    .flatMap((c) =>
-      listUpcomingSessionsByClass(c.id, todayStr()).map((s) => ({ ...c, session: s }))
-    )
-    .sort((a, b) => a.session.date.localeCompare(b.session.date));
-
   el.innerHTML = `
-    <div class="section-title">Lịch giảng dạy theo tuần</div>
-    <div class="panel">
-      <div class="table-wrap">
-        <table class="week-table">
-          <thead>
-            <tr><th class="week-class-col">Lớp</th>${WEEKDAYS.map((w) => `<th>${w.label}</th>`).join("")}</tr>
-          </thead>
-          <tbody>
-            ${classes
-              .map(
-                (c) => `
-                  <tr>
-                    <td>
-                      <strong>${c.className}</strong>
-                      <span class="badge subject">${subjectLabel(c.subject)}</span>
-                    </td>
-                    ${WEEKDAYS.map((w) => {
-                      const slot = (c.schedule || []).find((s) => s.dayOfWeek === w.value);
-                      return `<td>${slot ? `<span class="slot-chip">${slot.start}–${slot.end}</span>` : ""}</td>`;
-                    }).join("")}
-                  </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-      ${classes.length === 0 ? `<div class="empty">Bạn chưa mở lớp nào.</div>` : ""}
-    </div>
-
-    <div class="section-title">Buổi học sắp tới & trạng thái điểm danh</div>
-    <div class="panel">
-      ${
-        allUpcoming.length
-          ? allUpcoming.map(
-              (c) => `
-                <div class="row-item">
-                  <div>
-                    <strong class="row-title">${formatDate(c.session.date)} · ${c.className} ${attBadge(c.session.id)}</strong>
-                    <span class="row-sub">${c.session.title || "Chưa có tiêu đề"}</span>
-                  </div>
-                  <span class="row-end muted">${c.enrolled}/${c.maxSlot} HS</span>
-                </div>`
-            ).join("")
-          : `<div class="empty">Chưa có buổi học sắp tới cho lớp nào.</div>`
-      }
-    </div>
+    <div class="section-title">Lịch giảng dạy</div>
+    <div id="teacher-schedule-calendar"></div>
+    ${classes.length ? `<div class="panel mt-lg"><div class="panel-head"><h2 class="panel-title">Lớp đang dạy</h2></div>${classes.map((cls) => `<div class="row-item"><div><strong>${escapeHtml(cls.className)}</strong><span class="row-sub">${escapeHtml(subjectLabel(cls.subject))} · ${escapeHtml(formatSchedule(cls.schedule))}</span></div><button class="btn btn-sm btn-primary" data-manage-class="${escapeHtml(cls.id)}">Quản lý lớp</button></div>`).join("")}</div>` : `<div class="empty panel">Bạn chưa mở lớp nào.</div>`}
   `;
+  renderTeacherCalendar(
+    el.querySelector("#teacher-schedule-calendar"),
+    classes,
+    calendar,
+    openClass
+  );
+  el.querySelectorAll("[data-manage-class]").forEach((button) =>
+    button.addEventListener("click", () => openClass(button.dataset.manageClass))
+  );
 }
 
 function renderClassesList(el, teacher, goTab) {
@@ -456,6 +506,7 @@ function renderClassDetail(el, teacher, classId, goTab) {
                     <td class="right actions">
                       <button class="btn btn-sm" data-attend="${s.id}">Điểm danh</button>
                       <button class="btn btn-sm" data-mat="${s.id}">${ICONS.paperclip} Tài liệu</button>
+                      <button class="btn btn-sm" data-reschedule="${escapeHtml(s.id)}">Đổi buổi</button>
                     </td>
                   </tr>`;
                 })
@@ -466,7 +517,7 @@ function renderClassDetail(el, teacher, classId, goTab) {
     </div>
 
     <div class="split">
-      <div class="panel">
+      <div class="panel" id="class-grades">
         <div class="panel-head"><h2 class="panel-title">Điểm số</h2></div>
         ${
           students.length
@@ -578,6 +629,50 @@ function renderClassDetail(el, teacher, classId, goTab) {
   );
   el.querySelectorAll("[data-mat]").forEach((btn) =>
     btn.addEventListener("click", () => goTab("materials", classId, btn.dataset.mat))
+  );
+  el.querySelectorAll("[data-reschedule]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const sessionId = button.dataset.reschedule;
+      const session = sessions.find((item) => item.id === sessionId);
+      if (!session) return;
+      const row = button.closest("tr");
+      row.insertAdjacentHTML(
+        "afterend",
+        `<tr data-reschedule-row="${escapeHtml(sessionId)}"><td colspan="5">
+          <form class="session-form" data-reschedule-form="${escapeHtml(sessionId)}">
+            <div><label>Ngày học mới</label><input name="date" type="date" value="${escapeHtml(session.date)}" required /></div>
+            <div class="session-title-field"><label>Tiêu đề</label><input name="title" value="${escapeHtml(session.title || "")}" required /></div>
+            <div class="align-end actions"><button class="btn btn-sm btn-primary" type="submit">Lưu lịch mới</button><button class="btn btn-sm" type="button" data-cancel-reschedule>Hủy</button></div>
+            <p class="form-error full" role="alert" hidden></p>
+          </form>
+          <p class="hint-sm">Khi lưu, buổi cũ và điểm danh cũ sẽ bị xóa; tài liệu sẽ được giữ cho buổi mới.</p>
+        </td></tr>`
+      );
+      button.disabled = true;
+      const editRow = row.nextElementSibling;
+      const formElement = editRow.querySelector("[data-reschedule-form]");
+      editRow.querySelector("[data-cancel-reschedule]").addEventListener("click", () => {
+        editRow.remove();
+        button.disabled = false;
+      });
+      formElement.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const form = new FormData(formElement);
+        const error = formElement.querySelector(".form-error");
+        error.hidden = true;
+        if (!window.confirm("Thay buổi học này bằng lịch mới? Buổi cũ và điểm danh cũ sẽ bị xóa; tài liệu được giữ lại.")) return;
+        try {
+          replaceSession(sessionId, {
+            date: form.get("date"),
+            title: form.get("title"),
+          });
+          renderClassDetail(el, teacher, classId, goTab);
+        } catch (err) {
+          error.textContent = err instanceof Error ? err.message : String(err);
+          error.hidden = false;
+        }
+      });
+    })
   );
 
   const gradeForm = el.querySelector("#grade-form");

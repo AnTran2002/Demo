@@ -2131,6 +2131,29 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.student-cal-chip {
+  display: block;
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--brand-dark);
+  background: #f2ecff;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.student-cal-chip:hover {
+  background: #e6d8ff;
+  border-color: #c9b1ff;
+  color: var(--brand-ink);
+}
+.student-calendar-empty { margin: 0 16px 16px; }
 .cal-cell.cal-out .cal-chip { background: #e9e5f7; color: var(--muted); }
 .cal-more { font-size: 11px; color: var(--muted); }
 
@@ -2157,6 +2180,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   .cal-grid { gap: 4px; padding: 10px 10px 14px; }
   .cal-cell { min-height: 64px; padding: 4px; }
   .cal-chip { font-size: 10px; padding: 2px 4px; }
+  .student-cal-chip { font-size: 10px; padding: 2px 4px; }
   .cal-dow { font-size: 11px; }
   .cal-head { padding: 14px 14px; }
 }

@@ -5,6 +5,34 @@ export function createSession(classId, { date, title }) {
   return DB.insert("sessions", { classId, date, title, materials: [] });
 }
 
+export function replaceSession(sessionId, { date, title }) {
+  const session = DB.findById("sessions", sessionId);
+  if (!session) throw new Error("Không tìm thấy buổi học cần đổi lịch");
+  if (!date) throw new Error("Ngày học không hợp lệ");
+
+  const materials = DB.getAll("materials").filter((item) => item.sessionId === sessionId);
+  const replacement = DB.insert("sessions", {
+    classId: session.classId,
+    date,
+    title,
+    materials: materials.map((item) => item.id),
+  });
+
+  DB.saveAll(
+    "materials",
+    DB.getAll("materials").map((item) =>
+      item.sessionId === sessionId ? { ...item, sessionId: replacement.id } : item
+    )
+  );
+  DB.saveAll(
+    "attendance",
+    DB.getAll("attendance").filter((item) => item.sessionId !== sessionId)
+  );
+  DB.remove("sessions", sessionId);
+
+  return replacement;
+}
+
 export function listSessionsByClass(classId) {
   return DB.getAll("sessions").filter((s) => s.classId === classId);
 }

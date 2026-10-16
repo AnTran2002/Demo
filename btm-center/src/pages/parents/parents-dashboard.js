@@ -784,7 +784,7 @@ const weekRow = (c) => `
 function renderGrades(el, ctx) {
   const { student, d } = ctx;
 
-  const blocks = d.myClasses.map((c) => {
+  const blocks = d.myClasses.map((c) => { 
     const grades = listGradesByStudentInClass(c.id, student.id)
       .slice()
       .sort(
