@@ -1,4 +1,4 @@
-﻿/* styles/style.css — style dùng chung toàn hệ thống */
+/* styles/style.css � style d�ng chung to�n h? th?ng */
 
 :root {
   --brand: #863bff;
@@ -37,7 +37,7 @@ body {
   padding: 28px 20px;
 }
 
-/* ============ Màn hình đăng nhập / đăng ký ============ */
+/* ============ M�n h�nh dang nh?p / dang k� ============ */
 
 .auth-page {
   position: fixed;
@@ -260,7 +260,7 @@ body {
   80% { transform: translateX(4px); }
 }
 
-/* Nút chính */
+/* N�t ch�nh */
 .btn-primary {
   position: relative;
   display: inline-flex;
@@ -392,6 +392,14 @@ body {
 .nav-item.logout { margin-top: auto; }
 .nav-item.logout:hover { background: rgba(255, 80, 80, 0.16); color: #ffb7b7; }
 
+.nav-icon-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
 .nav-badge {
   display: inline-flex;
   align-items: center;
@@ -404,7 +412,8 @@ body {
   color: #5a4100;
   font-size: 11px;
   font-weight: 800;
-  margin-left: auto;
+  margin-left: 0;
+  margin-top: 2px;
   flex: none;
 }
 
@@ -475,7 +484,7 @@ body {
   padding: 28px 30px 48px;
 }
 
-/* Thẻ chờ / badge */
+/* Th? ch? / badge */
 .role-badge {
   align-self: flex-start;
   margin-top: 2px;
@@ -503,7 +512,7 @@ body {
 .badge.open, .badge.active { color: #0d8a5f; background: #e6f8f0; }
 .badge.closed, .badge.inactive { color: #c0392b; background: #fdecec; }
 
-/* Banner chào */
+/* Banner ch�o */
 .welcome-banner {
   display: flex;
   align-items: center;
@@ -573,7 +582,7 @@ body {
   border-left: 1px solid var(--line);
 }
 
-/* Thẻ thống kê */
+/* Th? th?ng k� */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -606,7 +615,7 @@ body {
 .stat-value { font-size: 24px; font-weight: 800; line-height: 1; color: var(--brand-ink); }
 .stat-label { font-size: 13px; color: var(--muted); margin-top: 3px; }
 
-/* Panel / bảng */
+/* Panel / b?ng */
 .panel {
   background: #fff;
   border-radius: 16px;
@@ -699,7 +708,7 @@ td.actions { text-align: right; }
   background: linear-gradient(90deg, #a05bff, #6a1bff);
 }
 
-/* Nút */
+/* N�t */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -736,7 +745,7 @@ td.actions { text-align: right; }
 .btn-toggle { background: var(--field); color: var(--muted); }
 .btn-toggle:hover { color: var(--brand-dark); background: #f2ecff; }
 
-/* Grid thẻ lớp học */
+/* Grid th? l?p h?c */
 .section-title {
   margin: 28px 0 16px;
   font-size: 15px;
@@ -782,7 +791,7 @@ td.actions { text-align: right; }
 
 .panel .form-error { margin: 14px 24px 20px; }
 
-/* Form tạo lớp */
+/* Form t?o l?p */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -794,7 +803,7 @@ td.actions { text-align: right; }
 .form-grid label { font-size: 12px; font-weight: 600; color: #443d63; }
 .form-grid .align-end { justify-content: flex-end; }
 
-/* Tiện ích layout */
+/* Ti?n �ch layout */
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .mt-lg { margin-top: 28px; }
 .mb-lg { margin-bottom: 28px; }
@@ -837,7 +846,7 @@ td.actions { text-align: right; }
 
 .auth-switch a:hover { text-decoration: underline; }
 
-/* Tài khoản demo */
+/* T�i kho?n demo */
 .demo-hint {
   margin-top: 18px;
   padding-top: 16px;
@@ -865,7 +874,7 @@ td.actions { text-align: right; }
 
 .demo-chip:hover { background: #e7d7ff; transform: translateY(-1px); }
 
-/* ============ Trang sau đăng nhập ============ */
+/* ============ Trang sau dang nh?p ============ */
 
 h2 { color: var(--brand-ink); }
 
@@ -904,7 +913,7 @@ section {
   .auth-title { font-size: 20px; }
 }
 
-/* ============ Các thành phần nghiệp vụ (buổi học, điểm danh, điểm, nhận xét) ============ */
+/* ============ C�c th�nh ph?n nghi?p v? (bu?i h?c, di?m danh, di?m, nh?n x�t) ============ */
 
 .right { text-align: right; }
 
@@ -912,7 +921,7 @@ td.actions { white-space: nowrap; }
 td.actions .btn { margin-left: 6px; }
 td.actions .btn:first-child { margin-left: 0; }
 
-/* Đầu trang chi tiết */
+/* �?u trang chi ti?t */
 .detail-head {
   display: flex;
   align-items: center;
@@ -926,7 +935,7 @@ td.actions .btn:first-child { margin-left: 0; }
 
 .detail-name { margin: 0; font-size: 20px; font-weight: 800; color: var(--brand-ink); }
 
-/* Khối thông tin */
+/* Kh?i th�ng tin */
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -949,7 +958,7 @@ td.actions .btn:first-child { margin-left: 0; }
 
 .info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 
-/* Panel chỉnh sửa */
+/* Panel ch?nh s?a */
 .edit-panel { margin-bottom: 18px; }
 .edit-panel summary {
   list-style: none;
@@ -964,7 +973,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .edit-panel summary::-webkit-details-marker { display: none; }
 .edit-panel summary svg { width: 16px; height: 16px; }
 
-/* Form buổi học */
+/* Form bu?i h?c */
 .session-form {
   display: grid;
   grid-template-columns: auto minmax(180px, 1fr) auto;
@@ -1032,7 +1041,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .mini-form textarea { resize: vertical; font-family: inherit; }
 .mini-form .align-end { justify-content: flex-end; align-items: flex-start; }
 
-/* Nút trong mini-form: cao đúng bằng ô input, rộng vừa đủ nội dung */
+/* N�t trong mini-form: cao d�ng b?ng � input, r?ng v?a d? n?i dung */
 .mini-form .align-end .btn {
   width: auto;
   padding: 10px 14px;
@@ -1042,18 +1051,18 @@ td.actions .btn:first-child { margin-left: 0; }
   white-space: nowrap;
 }
 
-/* Ô bấm cảnh báo */
+/* � b?m c?nh b�o */
 .btn-warn { background: #fff; color: #b45309; border: 1.5px solid #f0d3a0; }
 .btn-warn:hover { background: #fdf3e3; }
 
-/* Chip chấm trạng thái */
+/* Chip ch?m tr?ng th�i */
 .badge.late { color: #b45309; background: #fdf3e3; }
 
-/* Badge giới tính */
+/* Badge gi?i t�nh */
 .badge.gender-male { color: #1d4ed8; background: #dbeafe; }
 .badge.gender-female { color: #be185d; background: #fce7f3; }
 
-/* Điểm danh */
+/* �i?m danh */
 .att-select { padding: 7px 10px; font-size: 13px; color: var(--text); border: 1.5px solid var(--line); border-radius: 9px; background: var(--field); }
 .att-select:focus { outline: none; border-color: var(--brand); }
 
@@ -1063,7 +1072,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .session-table th:last-child,
 .session-table td:last-child { text-align: right; }
 
-/* Chỉnh sửa lịch - ngày học */
+/* Ch?nh s?a l?ch - ng�y h?c */
 .form-grid-days {
   grid-column: 1 / -1;
   display: flex;
@@ -1099,7 +1108,7 @@ td.actions .btn:first-child { margin-left: 0; }
   border-color: #dcc7ff;
 }
 
-/* Bảng tuần */
+/* B?ng tu?n */
 .week-table th { text-align: center; font-size: 12px; }
 .week-table td { text-align: center; white-space: normal; }
 .week-table .week-class-col { text-align: left; min-width: 160px; }
@@ -1117,7 +1126,7 @@ td.actions .btn:first-child { margin-left: 0; }
   white-space: nowrap;
 }
 
-/* Lọc trong trang */
+/* L?c trong trang */
 .filter-row { display: flex; align-items: center; gap: 10px; }
 .filter-row select { width: auto; min-width: 160px; }
 
@@ -1131,7 +1140,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .enroll-filter-label { font-size: 13px; font-weight: 700; color: #443d63; }
 .enroll-filter select { width: auto; min-width: 170px; }
 
-/* Chi tiết buổi học cho học sinh */
+/* Chi ti?t bu?i h?c cho h?c sinh */
 .session-block { border-bottom: 1px solid var(--line); }
 .session-block:last-child { border-bottom: none; }
 
@@ -1149,7 +1158,7 @@ td.actions .btn:first-child { margin-left: 0; }
 }
 .mat-chip svg { width: 14px; height: 14px; color: var(--muted); }
 
-/* Trường thông báo cho phụ huynh */
+/* Tru?ng th�ng b�o cho ph? huynh */
 .notice-head {
   display: flex;
   align-items: center;
@@ -1214,8 +1223,8 @@ td.actions .btn:first-child { margin-left: 0; }
 .notice-alert .btn { flex: none; }
 .mat-empty { padding: 0 24px 16px; font-size: 12px; color: var(--muted); }
 
-/* Tab "Buổi học & Nhận xét" của phụ huynh: khối buổi học nằm ngoài .panel
-   nên cần nền/bo góc/bóng riêng, và viền dưới chỉ dùng để tách giữa các khối. */
+/* Tab "Bu?i h?c & Nh?n x�t" c?a ph? huynh: kh?i bu?i h?c n?m ngo�i .panel
+   n�n c?n n?n/bo g�c/b�ng ri�ng, v� vi?n du?i ch? d�ng d? t�ch gi?a c�c kh?i. */
 .content > .session-block {
   background: #fff;
   border-radius: 16px;
@@ -1228,7 +1237,7 @@ td.actions .btn:first-child { margin-left: 0; }
 
 .hint-sm { font-size: 12px; font-style: italic; color: var(--muted); }
 
-/* Điểm số & nhận xét */
+/* �i?m s? & nh?n x�t */
 .grade-chip {
   display: inline-block;
   margin: 2px 4px 2px 0;
@@ -1250,7 +1259,7 @@ td.actions .btn:first-child { margin-left: 0; }
 .comment-head small { font-size: 12px; color: var(--muted); }
 .comment-item p { margin: 6px 0 0; font-size: 14px; color: var(--text); line-height: 1.5; }
 
-/* Chi tiết tài khoản (Admin) */
+/* Chi ti?t t�i kho?n (Admin) */
 .acct-classes { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
 
 .acct-class {
@@ -1265,7 +1274,7 @@ td.actions .btn:first-child { margin-left: 0; }
   font-size: 13px;
 }
 
-/* Demo chips trên trang đăng nhập */
+/* Demo chips tr�n trang dang nh?p */
 .demo-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
 
@@ -1285,7 +1294,7 @@ td.actions .btn:first-child { margin-left: 0; }
   --select-arrow-hi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23863bff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E");
 }
 
-/* ---------- Cuộn mượt & nền tảng toàn trang ---------- */
+/* ---------- Cu?n mu?t & n?n t?ng to�n trang ---------- */
 
 html {
   scroll-behavior: smooth;
@@ -1354,7 +1363,7 @@ input[type="range"] {
   accent-color: var(--brand);
 }
 
-/* Thanh cuộn mảnh, hiện đại */
+/* Thanh cu?n m?nh, hi?n d?i */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
@@ -1396,7 +1405,7 @@ input[type="range"] {
 
 #app { animation: fade-in var(--dur-slow) var(--ease-out) backwards; }
 
-/* ---------- Tôn trọng thiết lập giảm chuyển động của hệ điều hành ---------- */
+/* ---------- T�n tr?ng thi?t l?p gi?m chuy?n d?ng c?a h? di?u h�nh ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -1417,7 +1426,7 @@ input[type="range"] {
   :focus-visible { outline-width: 3px; }
 }
 
-/* ---------- Keyframes dùng chung ---------- */
+/* ---------- Keyframes d�ng chung ---------- */
 
 @keyframes fade-in {
   from { opacity: 0; }
@@ -1445,7 +1454,7 @@ input[type="range"] {
   100% { transform: translateX(110%); }
 }
 
-/* ---------- Vào màn hình mượt mà (stagger) ---------- */
+/* ---------- V�o m�n h�nh mu?t m� (stagger) ---------- */
 
 .content > * {
   animation: fade-up var(--dur-slow) var(--ease-out) backwards;
@@ -1485,7 +1494,7 @@ input[type="range"] {
   animation: pop-in 0.3s var(--ease-spring) backwards;
 }
 
-/* ---------- Nút: bấm xuống, ánh sáng quét, rung nhẹ ---------- */
+/* ---------- N�t: b?m xu?ng, �nh s�ng qu�t, rung nh? ---------- */
 
 .btn,
 .icon-btn,
@@ -1595,7 +1604,7 @@ input[type="range"] {
   .icon-btn:hover svg { transform: scale(1.12); }
 }
 
-/* ---------- Sidebar & điều hướng ---------- */
+/* ---------- Sidebar & di?u hu?ng ---------- */
 
 .nav-item {
   position: relative;
@@ -1638,7 +1647,7 @@ input[type="range"] {
   .nav-item:hover .nav-icon svg { transform: scale(1.1) rotate(-4deg); }
 }
 
-/* ---------- Topbar kính & avatar ---------- */
+/* ---------- Topbar k�nh & avatar ---------- */
 
 .topbar {
   transition:
@@ -1704,7 +1713,7 @@ input[type="range"] {
   pointer-events: none;
 }
 
-/* ---------- Thẻ & panel: nổi nhẹ khi rê chuột ---------- */
+/* ---------- Th? & panel: n?i nh? khi r� chu?t ---------- */
 
 .stat-card,
 .class-card,
@@ -1766,7 +1775,7 @@ th,
   }
 }
 
-/* ---------- Bảng: chuyển màu mượt & bóng cuộn hai đầu ---------- */
+/* ---------- B?ng: chuy?n m�u mu?t & b�ng cu?n hai d?u ---------- */
 
 .table-wrap {
   background:
@@ -1798,7 +1807,7 @@ tbody tr:nth-child(6) { animation-delay: 0.17s; }
 tbody tr:nth-child(7) { animation-delay: 0.2s; }
 tbody tr:nth-child(n + 8) { animation-delay: 0.23s; }
 
-/* ---------- Biểu mẫu: select, checkbox, focus ---------- */
+/* ---------- Bi?u m?u: select, checkbox, focus ---------- */
 
 .auth-form select,
 .form-grid select,
@@ -1927,7 +1936,7 @@ textarea:-webkit-autofill {
 
 .day-check input[type="checkbox"]:checked::after { transform: rotate(45deg) scale(1); }
 
-/* ---------- Chip, badge, thẻ nhỏ: phản hồi khi rê chuột ---------- */
+/* ---------- Chip, badge, th? nh?: ph?n h?i khi r� chu?t ---------- */
 
 .badge,
 .role-badge,
@@ -1975,7 +1984,7 @@ textarea:-webkit-autofill {
   .password-toggle:hover svg { transform: scale(1.12); }
 }
 
-/* ---------- Thanh tiến trình slot ---------- */
+/* ---------- Thanh ti?n tr�nh slot ---------- */
 
 .slot-bar {
   transition: box-shadow var(--dur) var(--ease-out);
@@ -2001,7 +2010,7 @@ textarea:-webkit-autofill {
   .slot-bar:hover i::after { animation-play-state: running; }
 }
 
-/* ---------- Vòng xoay loading ---------- */
+/* ---------- V�ng xoay loading ---------- */
 
 .btn-spinner {
   position: relative;
@@ -2024,7 +2033,7 @@ textarea:-webkit-autofill {
   100% { transform: scale(1.5); opacity: 0; }
 }
 
-/* ---------- Khối gập (details) mở/đóng mượt ---------- */
+/* ---------- Kh?i g?p (details) m?/d�ng mu?t ---------- */
 
 .edit-panel summary {
   padding: 2px 4px;
@@ -2058,7 +2067,7 @@ textarea:-webkit-autofill {
   }
 }
 
-/* ---------- Trang đăng nhập: chuyển động nền & thẻ ---------- */
+/* ---------- Trang dang nh?p: chuy?n d?ng n?n & th? ---------- */
 
 .auth-page::before,
 .auth-page::after {
@@ -2095,7 +2104,7 @@ textarea:-webkit-autofill {
     border-color var(--dur-fast) var(--ease-out);
 }
 
-/* ---------- Cuộn ngang chip ngày: snap nhẹ ---------- */
+/* ---------- Cu?n ngang chip ng�y: snap nh? ---------- */
 
 .day-chips,
 .day-checks {
@@ -2107,7 +2116,7 @@ textarea:-webkit-autofill {
 
 .day-check { scroll-snap-align: start; }
 
-/* ---------- Hiệu ứng cho thiết bị cảm ứng ---------- */
+/* ---------- Hi?u ?ng cho thi?t b? c?m ?ng ---------- */
 
 @media (hover: none) {
   .btn:active:not(:disabled) { transform: scale(0.97); }
@@ -2117,7 +2126,7 @@ textarea:-webkit-autofill {
   .btn-primary::after { display: none; }
 }
 
-/* ---------- Trường "Lịch học của con" của phụ huynh: lịch dạng calendar ---------- */
+/* ---------- Tru?ng "L?ch h?c c?a con" c?a ph? huynh: l?ch d?ng calendar ---------- */
 
 .cal-head {
   display: flex;
@@ -2201,7 +2210,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 .day-mats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .day-mats .mat-chip { padding: 5px 8px 5px 10px; font-size: 12px; }
 
-/* ---------- Trường "Bảng điểm & Nhận xét" của phụ huynh: khối theo từng môn ---------- */
+/* ---------- Tru?ng "B?ng di?m & Nh?n x�t" c?a ph? huynh: kh?i theo t?ng m�n ---------- */
 
 .subject-block { margin-bottom: 26px; }
 .subject-block:last-child { margin-bottom: 0; }
@@ -2223,7 +2232,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   .cal-dow { font-size: 11px; }
   .cal-head { padding: 14px 14px; }
 }
-/* ---------- Quản trị: popup, thông báo, flash ---------- */
+/* ---------- Qu?n tr?: popup, th�ng b�o, flash ---------- */
 .admin-flash {
   margin: 0 0 14px;
   padding: 11px 14px;
@@ -2346,10 +2355,10 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 .notif-end { display: inline-flex; align-items: center; gap: 10px; }
 
 /* ==========================================================================
-   Admin Redesign — Trang Tổng quan Hợp nhất (Unified Single-Page Overview)
+   Admin Redesign � Trang T?ng quan H?p nh?t (Unified Single-Page Overview)
    ========================================================================== */
 
-/* Modal kích thước mở rộng */
+/* Modal k�ch thu?c m? r?ng */
 .modal.modal-lg {
   width: min(860px, 96%);
 }
@@ -2358,14 +2367,14 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   width: min(1120px, 98%);
 }
 
-/* Master container trang Tổng quan */
+/* Master container trang T?ng quan */
 .overview-dashboard {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-/* Thanh nhảy nhanh (Quick Jump Sticky Bar) */
+/* Thanh nh?y nhanh (Quick Jump Sticky Bar) */
 .overview-jump-bar {
   position: sticky;
   top: -10px;
@@ -2442,7 +2451,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   color: #fff;
 }
 
-/* Khối Panel Tổng quan */
+/* Kh?i Panel T?ng quan */
 .overview-panel {
   background: #fff;
   border-radius: 18px;
@@ -2504,7 +2513,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   flex-wrap: wrap;
 }
 
-/* Nút Xem chi tiết & Nút Thêm nhanh cân đối chuẩn chỉnh */
+/* N�t Xem chi ti?t & N�t Th�m nhanh c�n d?i chu?n ch?nh */
 .btn-view-detail,
 .btn-quick-add {
   box-sizing: border-box;
@@ -2549,7 +2558,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   transform: scale(1.12);
 }
 
-/* Nút Thêm mới nhanh (Primary Action) */
+/* N�t Th�m m?i nhanh (Primary Action) */
 .btn-quick-add {
   color: #ffffff;
   background: linear-gradient(135deg, #0d8a5f 0%, #076d49 100%);
@@ -2568,7 +2577,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   transform: translateY(0);
 }
 
-/* Nút Xem chi tiết nổi bật (Secondary / Outline Highlight) */
+/* N�t Xem chi ti?t n?i b?t (Secondary / Outline Highlight) */
 .btn-view-detail {
   color: #611ad1;
   background: #f5f0ff;
@@ -2588,7 +2597,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   transform: translateY(0);
 }
 
-/* Thanh công cụ lọc & tìm kiếm */
+/* Thanh c�ng c? l?c & t�m ki?m */
 .overview-toolbar {
   display: flex;
   align-items: center;
@@ -2661,7 +2670,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   border-color: var(--brand);
 }
 
-/* Thẻ thống kê KPI cao cấp */
+/* Th? th?ng k� KPI cao c?p */
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -2741,7 +2750,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   margin-top: 2px;
 }
 
-/* Thống kê chuyên sâu Phân tích & Tình trạng trung tâm */
+/* Th?ng k� chuy�n s�u Ph�n t�ch & T�nh tr?ng trung t�m */
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
@@ -2771,7 +2780,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   color: var(--brand-ink);
 }
 
-/* Tiến độ môn học / Sĩ số */
+/* Ti?n d? m�n h?c / Si s? */
 .subject-stat-row {
   display: flex;
   align-items: center;
@@ -2812,7 +2821,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   background: linear-gradient(90deg, #863bff, #0d8a5f);
 }
 
-/* Mật độ lịch học các ngày */
+/* M?t d? l?ch h?c c�c ng�y */
 .weekday-bars {
   display: flex;
   align-items: flex-end;
@@ -2863,7 +2872,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   color: var(--brand-dark);
 }
 
-/* Lưới Thao tác nhanh & Nhật ký */
+/* Lu?i Thao t�c nhanh & Nh?t k� */
 .quick-ops-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2932,7 +2941,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   line-height: 1.35;
 }
 
-/* Nhật ký hoạt động gần đây */
+/* Nh?t k� ho?t d?ng g?n d�y */
 .activity-feed {
   display: flex;
   flex-direction: column;
@@ -2972,7 +2981,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   white-space: nowrap;
 }
 
-/* Bảng danh sách chi tiết học sinh trong lớp (Roster modal) */
+/* B?ng danh s�ch chi ti?t h?c sinh trong l?p (Roster modal) */
 .roster-summary {
   display: flex;
   align-items: center;
@@ -3002,7 +3011,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 }
 
 /* --------------------------------------------------------------------------
-   Phần mở rộng cho Lịch học, Điểm số, Tài liệu & Đăng ký môn (Đồng bộ các role)
+   Ph?n m? r?ng cho L?ch h?c, �i?m s?, T�i li?u & �ang k� m�n (�?ng b? c�c role)
    -------------------------------------------------------------------------- */
 .schedule-grid-week {
   display: grid;
@@ -3073,7 +3082,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   font-weight: 600;
 }
 
-/* Thẻ điểm số & nhận xét */
+/* Th? di?m s? & nh?n x�t */
 .grade-matrix-card {
   display: flex;
   flex-direction: column;
@@ -3109,7 +3118,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   background: linear-gradient(135deg, #c0392b, #962d22);
 }
 
-/* Khối nhận xét của giáo viên */
+/* Kh?i nh?n x�t c?a gi�o vi�n */
 .comment-bubble {
   padding: 10px 14px;
   background: #ffffff;
@@ -3121,7 +3130,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   line-height: 1.45;
 }
 
-/* Khối danh sách tài liệu */
+/* Kh?i danh s�ch t�i li?u */
 .material-file-card {
   display: flex;
   align-items: center;

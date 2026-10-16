@@ -108,8 +108,7 @@ export function renderShell(container, { title, items }) {
             .map(
               (i) => `
                 <button class="nav-item${i.active ? " active" : ""}" data-tab="${i.id}">
-                  <span class="nav-icon">${i.icon}</span><span class="nav-label">${i.label}</span>
-                  ${i.badge != null && i.badge > 0 ? `<span class="nav-badge">${i.badge}</span>` : ""}
+                  <span class="nav-icon-group"><span class="nav-icon">${i.icon}</span>${i.badge != null && i.badge > 0 ? `<span class="nav-badge">${i.badge}</span>` : ""}</span><span class="nav-label">${i.label}</span>
                 </button>`
             )
             .join("")}

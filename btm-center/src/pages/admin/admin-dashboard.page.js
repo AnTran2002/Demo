@@ -141,33 +141,40 @@ function openModal({ title, body, foot = "", size = "", onMount }) {
 // Cập nhật số thông báo (badge) hiển thị trên mỗi mục menu Sidebar Admin.
 function updateAdminSidebarBadges(appShell, counts) {
   if (!appShell) return;
+  counts = counts || {};
+  const prevCounts = {};
+  appShell.querySelectorAll(".sidebar .nav-item:not(.logout)").forEach((btn) => {
+    const b = btn.querySelector(".nav-badge");
+    prevCounts[btn.dataset.tab] = b ? Number(b.textContent) || 0 : 0;
+  });
   const map = {
-    overview: counts.overview ?? 0,
-    accounts: counts.accounts ?? 0,
-    classes: counts.classes ?? 0,
-    parentlinks: counts.parentlinks ?? 0,
-    notifications: counts.notifications ?? 0,
-    analytics: counts.analytics ?? 0,
-    settings: counts.settings ?? 0,
+    overview: counts.overview != null ? counts.overview : (prevCounts.overview ?? 0),
+    accounts: counts.accounts != null ? counts.accounts : (prevCounts.accounts ?? 0),
+    classes: counts.classes != null ? counts.classes : (prevCounts.classes ?? 0),
+    parentlinks: counts.parentlinks != null ? counts.parentlinks : (prevCounts.parentlinks ?? 0),
+    notifications: counts.notifications != null ? counts.notifications : (prevCounts.notifications ?? 0),
+    analytics: counts.analytics != null ? counts.analytics : (prevCounts.analytics ?? 0),
+    settings: counts.settings != null ? counts.settings : (prevCounts.settings ?? 0),
   };
   appShell.querySelectorAll(".sidebar .nav-item:not(.logout)").forEach((btn) => {
     const id = btn.dataset.tab;
     if (!(id in map)) return;
     const val = map[id];
     let badge = btn.querySelector(".nav-badge");
+    const iconGroup = btn.querySelector(".nav-icon-group") || btn;
     if (val > 0) {
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "nav-badge";
-        btn.appendChild(badge);
+        iconGroup.appendChild(badge);
       }
+      if (badge.parentElement !== iconGroup) iconGroup.appendChild(badge);
       badge.textContent = val;
     } else if (badge) {
       badge.remove();
     }
   });
 }
-
 export function renderAdminDashboard(container) {
   // Yêu cầu: Bỏ tab quản lý lớp học và tab thông báo ở menu.
   // Đưa tất cả vào 1 trang duy nhất trong tab "Tổng quan".
