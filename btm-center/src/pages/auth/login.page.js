@@ -54,9 +54,9 @@ export function renderLoginPage(container) {
           <span class="demo-label">Tài khoản demo:</span>
           <div class="demo-chips">
             <button type="button" class="demo-chip" data-username="admin" data-password="admin123">admin / admin123</button>
-            <button type="button" class="demo-chip" data-username="teacher" data-password="123456">teacher / 123456</button>
-            <button type="button" class="demo-chip" data-username="student" data-password="123456">student / 123456</button>
-            <button type="button" class="demo-chip" data-username="parent" data-password="123456">parent / 123456</button>
+            <button type="button" class="demo-chip" data-username="gv-hung" data-password="123456">gv-hung / 123456 (Giáo viên)</button>
+            <button type="button" class="demo-chip" data-username="hs-trang" data-password="123456">hs-trang / 123456 (Học sinh)</button>
+            <button type="button" class="demo-chip" data-username="ph-thu-huong" data-password="123456">ph-thu-huong / 123456 (Phụ huynh)</button>
           </div>
         </div>
       </div>

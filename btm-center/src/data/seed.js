@@ -48,7 +48,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "t-toan",
-    username: "teacher",
+    username: "gv-hung",
     password: "123456",
     role: "teacher",
     fullName: "Nguyễn Văn Hùng",
@@ -60,7 +60,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "t-van",
-    username: "covan",
+    username: "gv-lan",
     password: "123456",
     role: "teacher",
     fullName: "Trần Thị Lan",
@@ -72,7 +72,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "t-anh",
-    username: "coanh",
+    username: "gv-duc",
     password: "123456",
     role: "teacher",
     fullName: "Lê Minh Đức",
@@ -84,7 +84,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "s-01",
-    username: "student",
+    username: "hs-trang",
     password: "123456",
     role: "student",
     fullName: "Phạm Thu Trang",
@@ -95,7 +95,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "s-02",
-    username: "student2",
+    username: "hs-huy",
     password: "123456",
     role: "student",
     fullName: "Vũ Quang Huy",
@@ -106,7 +106,7 @@ const DEFAULT_USERS = [
   },
   {
     id: "s-03",
-    username: "student3",
+    username: "hs-ngoc",
     password: "123456",
     role: "student",
     fullName: "Đặng Bảo Ngọc",
@@ -115,18 +115,42 @@ const DEFAULT_USERS = [
     dob: "2010-12-01",
     active: true,
   },
-  // Tài khoản demo phụ huynh, liên kết với học sinh demo "student" (s-01).
-  // Chỉ lưu studentId — mọi dữ liệu lớp/điểm/điểm danh đọc chung từ s-01.
+  // Tài khoản demo phụ huynh, mỗi tài khoản liên kết với đúng 1 học sinh con qua studentId.
+  // Mọi dữ liệu lớp/điểm/điểm danh của phụ huynh đều đọc chung từ studentId này.
   {
     id: "p-01",
-    username: "parent",
+    username: "ph-thu-huong",
     password: "123456",
     role: "parent",
-    fullName: "Phụ huynh Phạm Thu Trang",
-    email: "phuhuynh.trang@gmail.com",
+    fullName: "Nguyễn Thị Thu Hương",
+    email: "thu.huong@gmail.com",
     gender: "Nữ",
     dob: "1985-03-08",
-    studentId: "s-01",
+    studentId: "s-01", // con: Phạm Thu Trang
+    active: true,
+  },
+  {
+    id: "p-02",
+    username: "ph-vu-nam",
+    password: "123456",
+    role: "parent",
+    fullName: "Vũ Văn Nam",
+    email: "vu.van.nam@gmail.com",
+    gender: "Nam",
+    dob: "1982-07-19",
+    studentId: "s-02", // con: Vũ Quang Huy
+    active: true,
+  },
+  {
+    id: "p-03",
+    username: "ph-dang-anh",
+    password: "123456",
+    role: "parent",
+    fullName: "Đặng Thị Lan Anh",
+    email: "dang.lan.anh@gmail.com",
+    gender: "Nữ",
+    dob: "1983-11-02",
+    studentId: "s-03", // con: Đặng Bảo Ngọc
     active: true,
   },
 ];
