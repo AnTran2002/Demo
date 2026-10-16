@@ -239,9 +239,6 @@ function setupStudentSidebarNav(container) {
 
       setStudentSidebarActive(container, section.id);
       section.scrollIntoView({ behavior: "smooth", block: "start" });
-      content.querySelectorAll(".jump-pill").forEach((link) => {
-        link.classList.toggle("active", link.getAttribute("href") === `#${section.id}`);
-      });
     });
   });
 }
@@ -354,32 +351,6 @@ function renderStudentOverviewPage(el, student) {
             <span>Đăng ký thêm lớp</span>
           </button>
         </div>
-      </div>
-
-      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
-      <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
-        <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số học tập</span>
-        </a>
-        <a class="jump-pill" href="#overview-schedule">
-          <span>Thời khóa biểu tuần</span>
-        </a>
-        <a class="jump-pill" href="#overview-my-classes">
-          <span>Lớp đang học</span>
-          <span class="jump-badge">${myClasses.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-grades">
-          <span>Bảng điểm & Nhận xét</span>
-        </a>
-        <a class="jump-pill" href="#overview-materials">
-          <span>Tài liệu bài giảng</span>
-          <span class="jump-badge">${allMaterials.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-enroll">
-          <span>Đăng ký lớp mới</span>
-          <span class="jump-badge">${openClasses.filter((c) => !c.isEnrolled).length}</span>
-        </a>
       </div>
 
       <!-- 1. DIV CHỈ SỐ HỌC TẬP (KPI) -->
@@ -754,31 +725,11 @@ function renderStudentOverviewPage(el, student) {
     </div>
   `;
 
-  // Jump bar
-  setupStudentJumpBar(el);
-
   // Setup detail modals
   setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate });
 
   // Setup actions (enroll, cancel)
   setupStudentActions(el, student);
-}
-
-function setupStudentJumpBar(el) {
-  const links = el.querySelectorAll(".jump-pill");
-  links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.getAttribute("href").replace("#", "");
-      const targetEl = el.querySelector(`#${targetId}`);
-      if (targetEl) {
-        links.forEach((l) => l.classList.remove("active"));
-        link.classList.add("active");
-        setStudentSidebarActive(el.closest(".app-shell"), targetId);
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
 }
 
 function setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate }) {
@@ -975,9 +926,6 @@ function setupStudentActions(el, student) {
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
       setStudentSidebarActive(el.closest(".app-shell"), "overview-enroll");
-      el.querySelectorAll(".jump-pill").forEach((l) => {
-        l.classList.toggle("active", l.getAttribute("href") === "#overview-enroll");
-      });
       targetEl.style.transition = "box-shadow 0.3s ease, border-color 0.3s ease";
       targetEl.style.borderColor = "#863bff";
       targetEl.style.boxShadow = "0 0 0 4px rgba(134, 59, 255, 0.25)";
