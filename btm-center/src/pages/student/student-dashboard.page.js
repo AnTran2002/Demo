@@ -363,7 +363,7 @@ function renderOverview(el, student, calendar) {
     btn.addEventListener("click", () => {
       try {
         requestCancelClass(student.id, btn.dataset.requestCancel);
-        renderOverview(el, student);
+        renderOverview(el, student, calendar);
       } catch (err) {
         flash(err.message);
       }
