@@ -821,12 +821,12 @@ function renderGrades(el, ctx) {
 
   el.innerHTML = `
     <div class="stat-grid">
-      ${statCard(ICONS.classes, blocks.length, "Môn đang học")}
+      ${statCard(ICONS.classes, blocks.length, "Lớp đang học")}
       ${statCard(ICONS.edit, allGrades.length, "Bài đã có điểm")}
       ${statCard(ICONS.school, overall === null ? "—" : overall.toFixed(1), "Điểm trung bình chung")}
     </div>
 
-    <div class="section-title">Bảng điểm & nhận xét theo môn (${blocks.length} môn)</div>
+    <div class="section-title">Bảng điểm & nhận xét theo lớp (${blocks.length} lớp)</div>
     ${
       blocks.length
         ? blocks.map(gradeBlock).join("")
