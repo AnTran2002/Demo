@@ -28,17 +28,46 @@ import {
 } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
+let cleanupParentAutoRefresh = null;
+
+const PARENT_REFRESH_ENTITIES = [
+  "users",
+  "classes",
+  "enrollments",
+  "sessions",
+  "attendance",
+  "grades",
+  "comments",
+  "materials",
+  "cancel_requests",
+];
+
+function getParentDataSnapshot() {
+  return JSON.stringify(
+    PARENT_REFRESH_ENTITIES.map((entity) => [entity, DB.getAll(entity)])
+  );
+}
 
 const materialLink = (m) => {
-  const isUrl = String(m.fileData || "").startsWith("http");
-  const target = isUrl
-    ? m.fileData
-    : String(m.fileData || "").startsWith("data:")
-    ? m.fileData
-    : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
-  return isUrl
-    ? `<a class="btn btn-sm btn-primary" href="${target}" target="_blank" rel="noopener" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`
-    : `<a class="btn btn-sm btn-primary" href="${target}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
+  const fileData = String(m.fileData || "");
+  let externalUrl = null;
+  try {
+    const parsedUrl = new URL(fileData);
+    if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+      externalUrl = parsedUrl.href;
+    }
+  } catch {
+    // Non-URL material content is handled as a downloadable text file below.
+  }
+
+  if (externalUrl) {
+    return `<a class="btn btn-sm btn-primary" href="${escapeHtml(externalUrl)}" target="_blank" rel="noopener noreferrer" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`;
+  }
+
+  const safeDataUrl = /^data:(?:application\/pdf|image\/(?:png|jpeg|gif|webp)|text\/plain)(?:;[^,]*)?,/i.test(fileData)
+    ? fileData
+    : `data:text/plain;charset=utf-8,${encodeURIComponent(fileData)}`;
+  return `<a class="btn btn-sm btn-primary" href="${escapeHtml(safeDataUrl)}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
 };
 
 function flash(el, message, type = "success") {
@@ -162,7 +191,7 @@ function renderParentOverviewPage(el, parent, student) {
   // Chuyên cần của con
   const attendanceList = listAttendanceOfStudent(student.id);
   const attPresentCount = attendanceList.filter((a) => a.status === "present" || a.status === "late").length;
-  const attRate = attendanceList.length ? pct(attPresentCount, attendanceList.length) : 100;
+  const attRate = attendanceList.length ? pct(attPresentCount, attendanceList.length) : null;
 
   // Lịch học trong tuần của con
   const currentDow = new Date().getDay() === 0 ? 8 : new Date().getDay() + 1;
@@ -207,7 +236,7 @@ function renderParentOverviewPage(el, parent, student) {
         <div>
           <h2 class="welcome-title">Xin chào, ${escapeHtml(parent.fullName)}!</h2>
           <p class="welcome-sub">
-            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${student.id}</strong>) · Hôm nay: ${formatDate(todayStr())}
+            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${escapeHtml(student.id)}</strong>) · Hôm nay: ${formatDate(todayStr())}
           </p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
@@ -272,7 +301,7 @@ function renderParentOverviewPage(el, parent, student) {
               <div class="kpi-content">
                 <span class="kpi-val">${myClasses.length}</span>
                 <span class="kpi-tit">Số môn đang học</span>
-                <span class="kpi-sub">${myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có"}</span>
+                <span class="kpi-sub">${escapeHtml(myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có")}</span>
               </div>
             </div>
 
@@ -288,9 +317,9 @@ function renderParentOverviewPage(el, parent, student) {
             <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
               <div class="kpi-icon">${ICONS.check}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${attRate}%</span>
+                <span class="kpi-val">${attRate === null ? "—" : `${attRate}%`}</span>
                 <span class="kpi-tit">Tỷ lệ chuyên cần</span>
-                <span class="kpi-sub">${attPresentCount}/${attendanceList.length || 1} buổi có mặt</span>
+                <span class="kpi-sub">${attendanceList.length ? `${attPresentCount}/${attendanceList.length} buổi có mặt` : "Chưa có dữ liệu điểm danh"}</span>
               </div>
             </div>
 
@@ -348,17 +377,23 @@ function renderParentOverviewPage(el, parent, student) {
                       ${
                         d.slots.length
                           ? d.slots
+                              .slice(0, 2)
                               .map(
                                 (s) => `
                                   <div class="schedule-slot-item">
                                     <span class="schedule-slot-title">${escapeHtml(s.className)}</span>
-                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${subjectLabel(s.subject)}</span>
-                                    <span class="schedule-slot-time">⏰ ${s.time}</span>
+                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${escapeHtml(subjectLabel(s.subject))}</span>
+                                    <span class="schedule-slot-time">⏰ ${escapeHtml(s.time)}</span>
                                     <span style="font-size:10.5px;color:var(--muted);">Giáo viên: ${escapeHtml(s.teacherName)}</span>
                                   </div>`
                               )
                               .join("")
                           : `<span class="muted" style="font-size:11px;margin:auto 0;text-align:center;">Không có lịch</span>`
+                      }
+                      ${
+                        d.slots.length > 2
+                          ? `<button type="button" class="schedule-more-btn" data-schedule-day="${d.day}" aria-label="Xem tất cả ${d.slots.length} ca học ${escapeHtml(d.label)}">+${d.slots.length - 2} buổi · Xem tất cả</button>`
+                          : ""
                       }
                     </div>
                   </div>`
@@ -400,7 +435,7 @@ function renderParentOverviewPage(el, parent, student) {
                         <div class="grade-matrix-card">
                           <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;">
                             <div style="display:flex;align-items:center;gap:10px;">
-                              <span class="badge subject">${subjectLabel(c.subject)}</span>
+                              <span class="badge subject">${escapeHtml(subjectLabel(c.subject))}</span>
                               <strong style="font-size:15px;color:var(--brand-ink);">${escapeHtml(c.className)}</strong>
                               <span class="muted" style="font-size:12.5px;">(Thầy/Cô: ${escapeHtml(c.teacherName)})</span>
                             </div>
@@ -415,15 +450,15 @@ function renderParentOverviewPage(el, parent, student) {
                           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 15 PHÚT (HS 1)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.g15.length ? gr.g15.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.g15.join(", ") || "—")}</strong>
                             </div>
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 1 TIẾT (HS 2)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.g45.length ? gr.g45.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.g45.join(", ") || "—")}</strong>
                             </div>
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">THI HỌC KỲ (HS 3)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.gSem.length ? gr.gSem.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.gSem.join(", ") || "—")}</strong>
                             </div>
                           </div>
 
@@ -478,9 +513,9 @@ function renderParentOverviewPage(el, parent, student) {
                       return `
                         <tr>
                           <td>${i + 1}</td>
-                          <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong> <small class="muted">(${formatDate(sess?.date || '')})</small></td>
-                          <td><span class="badge subject">${subjectLabel(cls?.subject)}</span></td>
-                          <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                          <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong> <small class="muted">(${escapeHtml(formatDate(sess?.date || ''))})</small></td>
+                          <td><span class="badge subject">${escapeHtml(subjectLabel(cls?.subject))}</span></td>
+                          <td><span class="badge ${badgeCls}">${escapeHtml(ATTENDANCE_LABELS[a.status] || a.status)}</span></td>
                           <td>${escapeHtml(a.note || 'Không có ghi chú')}</td>
                         </tr>`;
                     }).join("")}
@@ -504,12 +539,19 @@ function renderParentOverviewPage(el, parent, student) {
             </div>
           </div>
           <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-refresh-parent" type="button" aria-label="Làm mới thông tin học tập">
+              ${ICONS.refresh}
+              <span>Làm mới</span>
+            </button>
             <button class="btn-view-detail" id="btn-detail-parent-notifications">
               ${ICONS.eye}
               <span>Xem chi tiết thông báo</span>
             </button>
           </div>
         </div>
+        <p class="muted" style="margin:0;padding:0 24px;font-size:12px;" aria-live="polite">
+          Tự kiểm tra cập nhật khi quay lại tab và mỗi 30 giây.
+        </p>
 
         <div style="padding: 20px 24px;">
           ${
@@ -531,16 +573,16 @@ function renderParentOverviewPage(el, parent, student) {
                       ${
                         n.canApprove
                           ? `<div style="display:flex;gap:8px;align-items:center;">
-                              <button class="btn btn-sm btn-primary" data-p-decide="${n.request.id}" data-action="approved" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-primary" data-p-decide="${escapeHtml(n.request.id)}" data-action="approved" style="width:auto;padding:6px 12px;">
                                 Đồng ý hủy
                               </button>
-                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-danger" data-p-decide="${escapeHtml(n.request.id)}" data-action="rejected" style="width:auto;padding:6px 12px;">
                                 Không đồng ý
                               </button>
                             </div>`
                           : n.kind === 'cancel-request' && n.request?.status === 'pending'
                           ? `<div style="display:flex;gap:8px;align-items:center;">
-                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-danger" data-p-decide="${escapeHtml(n.request.id)}" data-action="rejected" style="width:auto;padding:6px 12px;">
                                 Đóng yêu cầu
                               </button>
                             </div>`
@@ -583,7 +625,7 @@ function renderParentOverviewPage(el, parent, student) {
                       <div class="material-file-card">
                         <div style="min-width:0;">
                           <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.fileName)}</strong>
-                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${formatDate(m.date)}</span>
+                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${escapeHtml(formatDate(m.date))}</span>
                         </div>
                         <div>${materialLink(m)}</div>
                       </div>`
@@ -603,10 +645,13 @@ function renderParentOverviewPage(el, parent, student) {
   setupParentJumpBar(el);
 
   // Setup detail modals
-  setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate });
+  setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate, daysWeek });
 
   // Setup action decide cancel request
   setupParentActions(el, parent, student);
+
+  // Keep the parent dashboard in sync with updates from other tabs.
+  setupParentAutoRefresh(el, parent, student);
 }
 
 function setupParentJumpBar(el) {
@@ -625,7 +670,7 @@ function setupParentJumpBar(el) {
   });
 }
 
-function setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate }) {
+function setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate, daysWeek }) {
   // 1. Chi tiết hồ sơ của con
   el.querySelector("#btn-detail-parent-kpi")?.addEventListener("click", () => {
     openModal({
@@ -634,14 +679,45 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
       body: `
         <div style="display:flex;flex-direction:column;gap:14px;">
           ${infoRow("Họ và tên con", escapeHtml(student.fullName))}
-          ${infoRow("Mã học sinh", student.id)}
+          ${infoRow("Mã học sinh", escapeHtml(student.id))}
           ${infoRow("Tài khoản học sinh", `@${escapeHtml(student.username)}`)}
           ${infoRow("Gmail học sinh", escapeHtml(student.email || "—"))}
           ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
-          ${infoRow("Tỷ lệ chuyên cần", `<strong>${attRate}%</strong>`)}
+          ${infoRow("Tỷ lệ chuyên cần", attRate === null ? "Chưa có dữ liệu điểm danh" : `<strong>${attRate}%</strong>`)}
           ${infoRow("Số lượng môn con đang học", `${myClasses.length} môn`)}
         </div>`,
       foot: `<button class="btn btn-primary" data-close>Đã hiểu</button>`,
+    });
+  });
+
+  el.querySelectorAll(".schedule-more-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const day = daysWeek.find((item) => item.day === Number(button.dataset.scheduleDay));
+      if (!day) return;
+
+      openModal({
+        title: `Tất cả ca học · ${day.label}`,
+        size: "modal-lg",
+        body: `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Môn học</th><th>Lớp</th><th>Khung giờ học</th><th>Giáo viên phụ trách</th></tr>
+              </thead>
+              <tbody>
+                ${day.slots.map((slot) => `
+                  <tr>
+                    <td><span class="badge subject">${escapeHtml(subjectLabel(slot.subject))}</span></td>
+                    <td><strong>${escapeHtml(slot.className)}</strong></td>
+                    <td>${escapeHtml(slot.time)}</td>
+                    <td>${escapeHtml(slot.teacherName)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>`,
+        foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+      });
     });
   });
 
@@ -676,10 +752,10 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                 return slots;
               }).map((s) => `
                 <tr>
-                  <td><strong>${s.dayLabel}</strong></td>
-                  <td><span class="badge subject">${subjectLabel(s.subject)}</span></td>
+                  <td><strong>${escapeHtml(s.dayLabel)}</strong></td>
+                  <td><span class="badge subject">${escapeHtml(subjectLabel(s.subject))}</span></td>
                   <td><strong>${escapeHtml(s.className)}</strong></td>
-                  <td>${s.time}</td>
+                  <td>${escapeHtml(s.time)}</td>
                   <td>${escapeHtml(s.teacher)}</td>
                 </tr>
               `).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Con chưa có lịch học nào.</td></tr>`}
@@ -714,7 +790,7 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                 const avg = coe > 0 ? (tot / coe).toFixed(1) : "—";
                 return `
                   <tr>
-                    <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                    <td><span class="badge subject">${escapeHtml(subjectLabel(c.subject))}</span></td>
                     <td><strong>${escapeHtml(c.className)}</strong></td>
                     <td>${g15.join(", ") || "—"}</td>
                     <td>${g45.join(", ") || "—"}</td>
@@ -748,8 +824,8 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                   <tr>
                     <td>${i + 1}</td>
                     <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong></td>
-                    <td>${formatDate(sess?.date || '')}</td>
-                    <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                    <td>${escapeHtml(formatDate(sess?.date || ''))}</td>
+                    <td><span class="badge ${badgeCls}">${escapeHtml(ATTENDANCE_LABELS[a.status] || a.status)}</span></td>
                     <td>${escapeHtml(a.note || '—')}</td>
                   </tr>`;
               }).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Chưa có dữ liệu điểm danh.</td></tr>`}
@@ -820,4 +896,55 @@ function setupParentActions(el, parent, student) {
       }
     })
   );
+}
+
+function setupParentAutoRefresh(el, parent, student) {
+  cleanupParentAutoRefresh?.();
+
+  let lastSnapshot = getParentDataSnapshot();
+  const refresh = ({ force = false, showMessage = false } = {}) => {
+    if (window.location.hash !== "#/parent") return;
+    if (!force && document.visibilityState !== "visible") return;
+
+    const snapshot = getParentDataSnapshot();
+    if (!force && snapshot === lastSnapshot) return;
+    lastSnapshot = snapshot;
+
+    const scrollY = window.scrollY;
+    const focusedId = document.activeElement instanceof HTMLElement
+      ? document.activeElement.id
+      : "";
+    renderParentOverviewPage(el, parent, student);
+    window.scrollTo(0, scrollY);
+    if (focusedId) {
+      el.querySelector(`#${CSS.escape(focusedId)}`)?.focus({ preventScroll: true });
+    }
+    if (showMessage) flash(el, "Thông tin học tập đã được làm mới.");
+  };
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") refresh();
+  };
+  const onStorage = (event) => {
+    if (!event.key || event.key.startsWith("btm_")) refresh();
+  };
+  const onHashChange = () => {
+    if (window.location.hash !== "#/parent") cleanupParentAutoRefresh?.();
+  };
+  const intervalId = window.setInterval(() => refresh(), 30_000);
+
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("hashchange", onHashChange);
+  el.querySelector("#btn-refresh-parent")?.addEventListener("click", () =>
+    refresh({ force: true, showMessage: true })
+  );
+
+  cleanupParentAutoRefresh = () => {
+    window.clearInterval(intervalId);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("hashchange", onHashChange);
+    cleanupParentAutoRefresh = null;
+  };
 }

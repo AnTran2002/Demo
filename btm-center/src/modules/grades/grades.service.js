@@ -1,6 +1,19 @@
 // modules/grades/grades.service.js — Phụ trách: Thành viên D
 import { DB } from "../../core/db.js";
 
+function normalizeGrade(grade) {
+  const legacyTypes = {
+    "Thường xuyên": "15m",
+    "Định kỳ": "45m",
+    "Học kỳ": "semester",
+  };
+
+  return {
+    ...grade,
+    type: legacyTypes[grade.type] || grade.type,
+  };
+}
+
 function normalizeGradeArgs(args) {
   if (args.length === 1 && args[0] && typeof args[0] === "object") {
     const d = args[0];
@@ -46,9 +59,11 @@ export function addGrade(...args) {
 export function listGradesByStudentInClass(classId, studentId) {
   return DB.getAll("grades").filter(
     (g) => g.classId === classId && g.studentId === studentId
-  );
+  ).map(normalizeGrade);
 }
 
 export function listGradesByClass(classId) {
-  return DB.getAll("grades").filter((g) => g.classId === classId);
+  return DB.getAll("grades")
+    .filter((g) => g.classId === classId)
+    .map(normalizeGrade);
 }

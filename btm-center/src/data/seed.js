@@ -253,18 +253,34 @@ const DEFAULT_MATERIALS = [
   {
     id: "m-1",
     sessionId: "sess-2",
-    fileName: "PT-bac-hai.pdf",
-    fileData: "https://drive.google.com/drive/u/0/my-drive",
+    fileName: "PT-bac-hai.txt",
+    fileData: "PHUONG TRINH BAC HAI\n\nDang ax^2 + bx + c = 0 (a != 0), biet Delta = b^2 - 4ac.\n- Delta > 0: phuong trinh co hai nghiem phan biet x1,2 = (-b +/- sqrt(Delta)) / (2a).\n- Delta = 0: phuong trinh co nghiem kep x = -b / (2a).\n- Delta < 0: phuong trinh vo nghiem trong tap so thuc.\n\nBai tap: Giai x^2 - 5x + 6 = 0.",
     uploadedAt: daysFromNow(-1),
   },
   {
     id: "m-2",
     sessionId: "sess-4",
-    fileName: "Conditional-sentences.pdf",
-    fileData: "https://drive.google.com/drive/u/0/my-drive",
+    fileName: "Conditional-sentences.txt",
+    fileData: "CONDITIONAL SENTENCES\n\nType 1: If + present simple, will + infinitive.\nExample: If it rains, we will stay at home.\n\nType 2: If + past simple, would + infinitive.\nExample: If I had more time, I would learn another language.\n\nPractice: Complete the sentence: If she studies hard, she _____ (pass) the exam.",
     uploadedAt: daysFromNow(-1),
   },
 ];
+
+function migrateDemoMaterialLinks() {
+  const replacements = new Map(DEFAULT_MATERIALS.map((material) => [material.id, material]));
+  const oldDemoLink = "https://drive.google.com/drive/u/0/my-drive";
+  const materials = DB.getAll("materials");
+  const migrated = materials.map((material) => {
+    const replacement = replacements.get(material.id);
+    return replacement && material.fileData === oldDemoLink
+      ? { ...material, fileName: replacement.fileName, fileData: replacement.fileData }
+      : material;
+  });
+
+  if (migrated.some((material, index) => material !== materials[index])) {
+    DB.saveAll("materials", migrated);
+  }
+}
 
 const DEFAULT_GRADES = [
   { id: "g-1", classId: "c-toan-9a", studentId: "s-01", type: "Thường xuyên", score: 8.5, note: "Kiểm tra miệng" },
@@ -431,6 +447,7 @@ export function seedDatabase() {
 
   purgeRetiredUsers();
   cleanDanglingLinks();
+  migrateDemoMaterialLinks();
 
   // Nếu tài khoản default bị thiếu (dữ liệu cũ) → khôi phục luôn dữ liệu demo
   // cho các entity còn trống để hệ thống demo có thể dùng ngay.
