@@ -62,6 +62,23 @@ const materialLink = (m) => {
     : `<a class="btn btn-sm btn-primary" href="${target}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
 };
 
+const infoRow = (key, value) => `
+  <div class="modal-info">
+    <span class="k">${key}</span>
+    <span class="v">${value}</span>
+  </div>`;
+
+// Chọn buổi học gần nhất để thao tác nhanh ở bảng lớp:
+// ưu tiên buổi hôm nay → buổi mới nhất đã qua → buổi gần nhất sắp tới
+function pickNearestSession(sessions) {
+  if (!sessions.length) return null;
+  const today = todayStr();
+  const todaySession = sessions.find((s) => s.date === today);
+  if (todaySession) return todaySession;
+  const byDateDesc = sessions.slice().sort((a, b) => b.date.localeCompare(a.date));
+  return byDateDesc.find((s) => s.date < today) || byDateDesc[byDateDesc.length - 1];
+}
+
 function flash(el, message, type = "success") {
   let box = el.querySelector("#teacher-flash");
   if (!box) {
@@ -112,25 +129,76 @@ function openModal({ title, body, foot = "", size = "", onMount }) {
 }
 
 // =============================================================================
-// KHỞI TẠO TRANG GIÁO VIÊN: DUY NHẤT 1 TAB "TỔNG QUAN"
+// KHỞI TẠO TRANG GIÁO VIÊN: SIDEBAR ĐIỀU HƯỚNG CÁC MỤC (GIỐNG TRANG ADMIN)
 // =============================================================================
 export function renderTeacherDashboard(container) {
   const teacher = Session.getCurrentUser();
 
   const tabs = [
-    {
-      id: "overview",
-      label: "Tổng quan",
-      icon: ICONS.grid,
-      active: true,
-      render: (content) => renderTeacherOverviewPage(content, teacher),
-    },
+    { id: "overview", label: "Tổng quan", icon: ICONS.grid, active: true, section: "overview-kpis" },
+    { id: "schedule", label: "Lịch giảng dạy", icon: ICONS.calendar, section: "overview-schedule" },
+    { id: "classes", label: "Quản lý lớp học", icon: ICONS.classes, section: "overview-classes" },
+    { id: "sessions", label: "Buổi học & Điểm danh", icon: ICONS.check, section: "overview-sessions" },
+    { id: "grading", label: "Điểm & Nhận xét", icon: ICONS.edit, section: "overview-grading" },
+    { id: "requests", label: "Yêu cầu Admin", icon: ICONS.bell, section: "overview-requests" },
   ];
 
   renderShell(container, { title: "Tổng quan Giảng dạy", items: tabs });
   const content = container.querySelector("#tab-content");
 
   renderTeacherOverviewPage(content, teacher);
+
+  // Điều hướng Sidebar: cuộn tới section tương ứng & giữ trạng thái active
+  setupTeacherSidebarNav(container, tabs);
+}
+
+function setupTeacherSidebarNav(container, tabs) {
+  const nav = container.querySelector(".sidebar-nav");
+  const content = container.querySelector("#tab-content");
+  if (!nav || !content) return;
+  nav.querySelectorAll(".nav-item:not(.logout)").forEach((btn) => {
+    const id = btn.dataset.tab;
+    const item = tabs.find((t) => t.id === id);
+    if (!item) return;
+    btn.addEventListener("click", () => {
+      nav.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const section = content.querySelector(`#${item.section}`);
+      if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+// Cập nhật số thông báo (badge) hiển thị trên mỗi mục menu Sidebar Giáo viên.
+function updateTeacherSidebarBadges(appShell, counts) {
+  if (!appShell) return;
+  counts = counts || {};
+  const map = {
+    overview: counts.overview != null ? counts.overview : 0,
+    schedule: counts.schedule != null ? counts.schedule : 0,
+    classes: counts.classes != null ? counts.classes : 0,
+    sessions: counts.sessions != null ? counts.sessions : 0,
+    grading: counts.grading != null ? counts.grading : 0,
+    requests: counts.requests != null ? counts.requests : 0,
+  };
+  appShell.querySelectorAll(".sidebar .nav-item:not(.logout)").forEach((btn) => {
+    const id = btn.dataset.tab;
+    if (!(id in map)) return;
+    const val = map[id];
+    let badge = btn.querySelector(".nav-badge");
+    const iconGroup = btn.querySelector(".nav-icon-group") || btn;
+    if (val > 0) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "nav-badge";
+        iconGroup.appendChild(badge);
+      }
+      if (badge.parentElement !== iconGroup) iconGroup.appendChild(badge);
+      badge.textContent = val;
+    } else if (badge) {
+      badge.remove();
+    }
+  });
 }
 
 // =============================================================================
@@ -197,8 +265,8 @@ function renderTeacherOverviewPage(el, teacher) {
       <!-- Banner chào mừng -->
       <div class="welcome-banner">
         <div>
-          <h2 class="welcome-title">Trung tâm Dạy học BTM · Tổng quan</h2>
-          <p class="welcome-sub">Hôm nay: ${formatDate(todayStr())}</p>
+          <h2 class="welcome-title">Trung tâm Dạy học BTM · Tổng quan Giảng dạy</h2>
+          <p class="welcome-sub">Hệ thống quản lý hợp nhất — Năm học 2024 - 2025 · Hôm nay: ${formatDate(todayStr())}</p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <span class="badge active" style="font-size:13px;padding:6px 14px;">● Hệ thống đang hoạt động</span>
@@ -206,29 +274,6 @@ function renderTeacherOverviewPage(el, teacher) {
             ${ICONS.plus} Thêm buổi học mới
           </button>
         </div>
-      </div>
-
-      <!-- Thanh điều hướng -->
-      <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Mục nhanh:</span>
-        <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số</span>
-        </a>
-        <a class="jump-pill" href="#overview-schedule">
-          <span>Lịch dạy</span>
-        </a>
-        <a class="jump-pill" href="#overview-classes">
-          <span>Lớp học</span>
-        </a>
-        <a class="jump-pill" href="#overview-sessions">
-          <span>Buổi học</span>
-        </a>
-        <a class="jump-pill" href="#overview-grading">
-          <span>Điểm & Nhận xét</span>
-        </a>
-        <a class="jump-pill" href="#overview-requests">
-          <span>Yêu cầu Admin</span>
-        </a>
       </div>
 
       <!-- 1. DIV CHỈ SỐ TỔNG QUAN & KPI -->
@@ -255,29 +300,20 @@ function renderTeacherOverviewPage(el, teacher) {
               <div class="kpi-content">
                 <span class="kpi-val">${overview.totalStudents}</span>
                 <span class="kpi-tit">Học sinh</span>
-                <span class="kpi-sub">${overview.totalActiveStudents} đang học · ${overview.totalStudents - overview.totalActiveStudents} đã khóa</span>
+                <span class="kpi-sub">Học sinh trong các lớp phụ trách</span>
               </div>
             </div>
 
             <div class="kpi-card" style="--kpi-color:#6a1bff;--kpi-bg:#f2ecff;">
-              <div class="kpi-icon">${ICONS.school}</div>
+              <div class="kpi-icon">${ICONS.calendar}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${myClasses.length}</span>
-                <span class="kpi-tit">Lớp học phụ trách</span>
-                <span class="kpi-sub">${myClasses.filter((c) => c.status === "open").length} lớp đang mở</span>
+                <span class="kpi-val">${allSessions.length}</span>
+                <span class="kpi-tit">Buổi học đã tạo</span>
+                <span class="kpi-sub">${upcomingSessions.length} buổi sắp diễn ra</span>
               </div>
             </div>
 
-            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
-              <div class="kpi-icon">${ICONS.bell}</div>
-              <div class="kpi-content">
-                <span class="kpi-val">${pendingRequests.length}</span>
-                <span class="kpi-tit">Yêu cầu chờ duyệt</span>
-                <span class="kpi-sub">${myRequests.length} tổng yêu cầu đã gửi</span>
-              </div>
-            </div>
-
-            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
+            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
               <div class="kpi-icon">${ICONS.check}</div>
               <div class="kpi-content">
                 <span class="kpi-val">${attRate}%</span>
@@ -286,12 +322,21 @@ function renderTeacherOverviewPage(el, teacher) {
               </div>
             </div>
 
-            <div class="kpi-card" style="--kpi-color:#0b7285;--kpi-bg:#e3f6f8;">
+            <div class="kpi-card" style="--kpi-color:#d97706;--kpi-bg:#fef3c7;">
+              <div class="kpi-icon">${ICONS.bell}</div>
+              <div class="kpi-content">
+                <span class="kpi-val">${pendingRequests.length}</span>
+                <span class="kpi-tit">Yêu cầu chờ duyệt</span>
+                <span class="kpi-sub">${myRequests.length} tổng yêu cầu đã gửi</span>
+              </div>
+            </div>
+
+            <div class="kpi-card" style="--kpi-color:#4f46e5;--kpi-bg:#eef2ff;">
               <div class="kpi-icon">${ICONS.classes}</div>
               <div class="kpi-content">
-                <span class="kpi-val">${allSessions.length}</span>
-                <span class="kpi-tit">Buổi học đã tạo</span>
-                <span class="kpi-sub">${upcomingSessions.length} buổi sắp diễn ra</span>
+                <span class="kpi-val">${myClasses.length}</span>
+                <span class="kpi-tit">Lớp học phụ trách</span>
+                <span class="kpi-sub">${myClasses.filter((c) => c.status === "open").length} lớp đang mở</span>
               </div>
             </div>
           </div>
@@ -369,28 +414,6 @@ function renderTeacherOverviewPage(el, teacher) {
               ${ICONS.eye}
               <span>Xem chi tiết bảng lớp</span>
             </button>
-          </div>
-        </div>
-
-        <div class="overview-toolbar">
-          <div class="toolbar-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" placeholder="Tìm theo tên lớp, giáo viên..." style="width:calc(100% - 140px)" />
-          </div>
-          <div class="toolbar-filters">
-            <select class="toolbar-select" style="min-width:150px;">
-              <option value="">Tất cả môn học</option>
-              <option value="Toan">Môn Toán</option>
-              <option value="Van">Môn Ngữ Văn</option>
-              <option value="Anh">Môn Tiếng Anh</option>
-            </select>
-            <select class="toolbar-select" style="min-width:150px;">
-              <option value="">Tất cả trạng thái</option>
-              <option value="open">Đang mở</option>
-              <option value="closed">Đã đóng</option>
-            </select>
           </div>
         </div>
 
@@ -490,22 +513,6 @@ function renderTeacherOverviewPage(el, teacher) {
               ${ICONS.eye}
               <span>Xem chi tiết các buổi học</span>
             </button>
-          </div>
-        </div>
-
-        <div class="overview-toolbar">
-          <div class="toolbar-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" placeholder="Tìm buổi học..." style="width:calc(100% - 140px)" />
-          </div>
-          <div class="toolbar-filters">
-            <select class="toolbar-select" style="min-width:150px;">
-              <option value="">Tất cả trạng thái</option>
-              <option value="done">Đã điểm danh</option>
-              <option value="inactive">Chưa điểm danh</option>
-            </select>
           </div>
         </div>
 
@@ -658,8 +665,13 @@ function renderTeacherOverviewPage(el, teacher) {
     </div>
   `;
 
-  // Jump bar scroll
-  setupTeacherJumpBar(el);
+  // Cập nhật số thông báo (badge) trên menu Sidebar
+  updateTeacherSidebarBadges(el.closest('.app-shell'), {
+    schedule: weekClasses.length,
+    classes: myClasses.length,
+    sessions: allSessions.length,
+    requests: pendingRequests.length,
+  });
 
   // Setup bảng điểm theo lớp được chọn
   setupGradeSection(el, myClasses, teacher);
@@ -669,22 +681,6 @@ function renderTeacherOverviewPage(el, teacher) {
 
   // Setup các sự kiện thao tác nhanh (Thêm buổi học, Đăng ký mở lớp, Điểm danh, v.v.)
   setupTeacherActions(el, teacher, myClasses, allSessions);
-}
-
-function setupTeacherJumpBar(el) {
-  const links = el.querySelectorAll(".jump-pill");
-  links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.getAttribute("href").replace("#", "");
-      const targetEl = el.querySelector(`#${targetId}`);
-      if (targetEl) {
-        links.forEach((l) => l.classList.remove("active"));
-        link.classList.add("active");
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
 }
 
 // Render bảng điểm cho lớp được chọn
@@ -811,7 +807,7 @@ function setupGradeSection(el, myClasses, teacher) {
 
 function setupTeacherDetailButtons(el, { teacher, myClasses, weekClasses, allSessions, myRequests, overview }) {
   // 1. Chi tiết chỉ số KPI
-  el.querySelector("#btn-detail-teacher-kpi")?.addEventListener("click", () => {
+  el.querySelector("#btn-detail-kpi")?.addEventListener("click", () => {
     openModal({
       title: "Báo cáo Hoạt động Giảng dạy của Thầy/Cô",
       size: "modal-lg",
@@ -1058,9 +1054,12 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
       const cls = myClasses.find((c) => c.id === classId);
       if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể điểm danh.`, "error");
       if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt – chưa thể điểm danh.`, "error");
-      const clsSessions = listSessionsByClass(classId).sort((a, b) => b.date.localeCompare(a.date));
-      if (!clsSessions.length) return flash(el, "Lớp này chưa có buổi học nào để điểm danh. Hãy bấm 'Thêm buổi học'.", "error");
-      openAttendanceModal(clsSessions[0].id, classId, () => {
+      const target = pickNearestSession(listSessionsByClass(classId));
+      if (!target) return flash(el, "Lớp này chưa có buổi học nào để điểm danh. Hãy bấm 'Thêm buổi học'.", "error");
+      if (target.date > todayStr()) {
+        return flash(el, `Buổi học gần nhất chưa bắt đầu (${formatDate(target.date)}) – điểm danh sẽ khả dụng khi đến giờ.`, "error");
+      }
+      openAttendanceModal(target.id, classId, () => {
         renderTeacherOverviewPage(el, teacher);
         flash(el, "Đã lưu kết quả điểm danh.");
       });
@@ -1075,9 +1074,9 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
       const cls = myClasses.find((c) => c.id === classId);
       if (cls?.status === "closed") return flash(el, `Lớp "${cls.className}" đã đóng – không thể chỉnh sửa tài liệu.`, "error");
       if (cls?.status === "pending") return flash(el, `Lớp "${cls.className}" chưa được Admin duyệt.`, "error");
-      const clsSessions = listSessionsByClass(classId);
-      if (!clsSessions.length) return flash(el, "Lớp này chưa có buổi học nào để đính kèm tài liệu.", "error");
-      openMaterialsModal(clsSessions[0].id, classId, () => {
+      const target = pickNearestSession(listSessionsByClass(classId));
+      if (!target) return flash(el, "Lớp này chưa có buổi học nào để đính kèm tài liệu.", "error");
+      openMaterialsModal(target.id, classId, () => {
         renderTeacherOverviewPage(el, teacher);
         flash(el, "Đã cập nhật tài liệu buổi học.");
       });
