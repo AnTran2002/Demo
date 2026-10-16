@@ -28,6 +28,25 @@ import {
 } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
+let cleanupParentAutoRefresh = null;
+
+const PARENT_REFRESH_ENTITIES = [
+  "users",
+  "classes",
+  "enrollments",
+  "sessions",
+  "attendance",
+  "grades",
+  "comments",
+  "materials",
+  "cancel_requests",
+];
+
+function getParentDataSnapshot() {
+  return JSON.stringify(
+    PARENT_REFRESH_ENTITIES.map((entity) => [entity, DB.getAll(entity)])
+  );
+}
 
 const materialLink = (m) => {
   const isUrl = String(m.fileData || "").startsWith("http");
@@ -510,12 +529,19 @@ function renderParentOverviewPage(el, parent, student) {
             </div>
           </div>
           <div class="panel-actions">
+            <button class="btn-view-detail" id="btn-refresh-parent" type="button" aria-label="Làm mới thông tin học tập">
+              ${ICONS.refresh}
+              <span>Làm mới</span>
+            </button>
             <button class="btn-view-detail" id="btn-detail-parent-notifications">
               ${ICONS.eye}
               <span>Xem chi tiết thông báo</span>
             </button>
           </div>
         </div>
+        <p class="muted" style="margin:0;padding:0 24px;font-size:12px;" aria-live="polite">
+          Tự kiểm tra cập nhật khi quay lại tab và mỗi 30 giây.
+        </p>
 
         <div style="padding: 20px 24px;">
           ${
@@ -613,6 +639,9 @@ function renderParentOverviewPage(el, parent, student) {
 
   // Setup action decide cancel request
   setupParentActions(el, parent, student);
+
+  // Keep the parent dashboard in sync with updates from other tabs.
+  setupParentAutoRefresh(el, parent, student);
 }
 
 function setupParentJumpBar(el) {
@@ -857,4 +886,55 @@ function setupParentActions(el, parent, student) {
       }
     })
   );
+}
+
+function setupParentAutoRefresh(el, parent, student) {
+  cleanupParentAutoRefresh?.();
+
+  let lastSnapshot = getParentDataSnapshot();
+  const refresh = ({ force = false, showMessage = false } = {}) => {
+    if (window.location.hash !== "#/parent") return;
+    if (!force && document.visibilityState !== "visible") return;
+
+    const snapshot = getParentDataSnapshot();
+    if (!force && snapshot === lastSnapshot) return;
+    lastSnapshot = snapshot;
+
+    const scrollY = window.scrollY;
+    const focusedId = document.activeElement instanceof HTMLElement
+      ? document.activeElement.id
+      : "";
+    renderParentOverviewPage(el, parent, student);
+    window.scrollTo(0, scrollY);
+    if (focusedId) {
+      el.querySelector(`#${CSS.escape(focusedId)}`)?.focus({ preventScroll: true });
+    }
+    if (showMessage) flash(el, "Thông tin học tập đã được làm mới.");
+  };
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") refresh();
+  };
+  const onStorage = (event) => {
+    if (!event.key || event.key.startsWith("btm_")) refresh();
+  };
+  const onHashChange = () => {
+    if (window.location.hash !== "#/parent") cleanupParentAutoRefresh?.();
+  };
+  const intervalId = window.setInterval(() => refresh(), 30_000);
+
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("hashchange", onHashChange);
+  el.querySelector("#btn-refresh-parent")?.addEventListener("click", () =>
+    refresh({ force: true, showMessage: true })
+  );
+
+  cleanupParentAutoRefresh = () => {
+    window.clearInterval(intervalId);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("hashchange", onHashChange);
+    cleanupParentAutoRefresh = null;
+  };
 }
