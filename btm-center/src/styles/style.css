@@ -538,6 +538,41 @@ body {
 }
 .welcome-banner .badge { background: rgba(255, 255, 255, 0.16); color: #fff; }
 
+.parent-student-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: -8px 0 22px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+}
+.parent-student-identity-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  color: var(--brand-dark);
+  background: #f2ecff;
+  border-radius: 12px;
+}
+.parent-student-identity-icon svg { width: 22px; height: 22px; }
+.parent-student-identity-details,
+.parent-student-identity-code {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.parent-student-identity-details { min-width: 0; flex: 1; }
+.parent-student-identity-label { font-size: 12px; color: var(--muted); }
+.parent-student-identity-name,
+.parent-student-identity-code strong { color: var(--brand-ink); }
+.parent-student-identity-code {
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+}
+
 /* Thẻ thống kê */
 .stat-grid {
   display: grid;

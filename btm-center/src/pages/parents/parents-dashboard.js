@@ -207,7 +207,7 @@ function renderParentOverviewPage(el, parent, student) {
         <div>
           <h2 class="welcome-title">Xin chào, ${escapeHtml(parent.fullName)}!</h2>
           <p class="welcome-sub">
-            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${student.id}</strong>) · Hôm nay: ${formatDate(todayStr())}
+            Hôm nay: ${formatDate(todayStr())}
           </p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
@@ -216,6 +216,18 @@ function renderParentOverviewPage(el, parent, student) {
           </span>
         </div>
       </div>
+
+      <section class="parent-student-identity panel" aria-label="Học sinh phụ huynh đang theo dõi">
+        <span class="parent-student-identity-icon" aria-hidden="true">${ICONS.school}</span>
+        <div class="parent-student-identity-details">
+          <span class="parent-student-identity-label">Đang theo dõi học sinh</span>
+          <strong class="parent-student-identity-name">${escapeHtml(student.fullName)}</strong>
+        </div>
+        <div class="parent-student-identity-code">
+          <span class="parent-student-identity-label">Mã học sinh</span>
+          <strong>${escapeHtml(student.id)}</strong>
+        </div>
+      </section>
 
       <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
       <div class="overview-jump-bar" id="overview-jump-bar">
