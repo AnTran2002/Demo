@@ -108,18 +108,146 @@ export function renderStudentDashboard(container) {
 
   const tabs = [
     {
-      id: "overview",
+      id: "overview-kpis",
       label: "Tổng quan",
       icon: ICONS.grid,
       active: true,
-      render: (content) => renderStudentOverviewPage(content, student),
+    },
+    {
+      id: "overview-schedule",
+      label: "Thời khóa biểu",
+      icon: ICONS.calendar,
+    },
+    {
+      id: "overview-my-classes",
+      label: "Lớp đang học",
+      icon: ICONS.classes,
+    },
+    {
+      id: "overview-grades",
+      label: "Bảng điểm & Nhận xét",
+      icon: ICONS.edit,
+    },
+    {
+      id: "overview-materials",
+      label: "Tài liệu học tập",
+      icon: ICONS.paperclip,
+    },
+    {
+      id: "overview-enroll",
+      label: "Đăng ký lớp mới",
+      icon: ICONS.plus,
     },
   ];
 
   renderShell(container, { title: "Tổng quan Học tập", items: tabs });
+  const sidebar = container.querySelector(".sidebar");
+  if (sidebar) {
+    sidebar.classList.add("student-sidebar");
+    const sidebarStyles = document.createElement("style");
+    sidebarStyles.textContent = `
+      .student-sidebar {
+        width: 240px;
+        flex: none;
+        padding: 20px 14px;
+        color: #fff;
+        background: linear-gradient(180deg, #2b0a5e 0%, #4a12a6 62%, #5e1bd6 100%);
+      }
+      .student-sidebar .sidebar-brand { gap: 12px; padding: 0 8px 22px; }
+      .student-sidebar .brand-text strong { font-size: 16px; letter-spacing: -0.01em; }
+      .student-sidebar .brand-text small { font-size: 11px; opacity: 0.65; }
+      .student-sidebar .sidebar-nav { gap: 6px; margin-top: 6px; }
+      .student-sidebar .nav-item {
+        gap: 11px;
+        padding: 11px 14px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.74);
+        background: transparent;
+        border-radius: 12px;
+        transition:
+          background-color var(--dur-fast) var(--ease-out),
+          color var(--dur-fast) var(--ease-out),
+          transform var(--dur-fast) var(--ease-out),
+          box-shadow var(--dur-fast) var(--ease-out);
+      }
+      .student-sidebar .nav-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+      .student-sidebar .nav-item:active { transform: scale(0.98); }
+      .student-sidebar .nav-item.active {
+        background: #fff;
+        color: var(--brand-ink);
+        box-shadow: 0 8px 18px -10px rgba(0, 0, 0, 0.5);
+        transform: translateX(2px);
+      }
+      .student-sidebar .nav-item::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 3px;
+        height: 56%;
+        border-radius: 0 3px 3px 0;
+        background: #a05bff;
+        opacity: 0;
+        transform: translateY(-50%) scaleY(0.2);
+        transform-origin: center;
+        transition:
+          transform var(--dur) var(--ease-spring),
+          opacity var(--dur-fast) var(--ease-out);
+      }
+      .student-sidebar .nav-item.active::before {
+        opacity: 1;
+        transform: translateY(-50%) scaleY(1);
+      }
+      .student-sidebar .nav-icon svg { width: 18px; height: 18px; }
+      .student-sidebar .nav-item.logout { margin-top: auto; }
+      .student-sidebar .nav-item.logout:hover {
+        background: rgba(255, 80, 80, 0.16);
+        color: #ffb7b7;
+      }
+      @media (max-width: 900px) {
+        .student-sidebar { width: 68px; padding: 18px 10px; }
+        .student-sidebar .brand-text,
+        .student-sidebar .nav-label { display: none; }
+        .student-sidebar .sidebar-brand { justify-content: center; padding: 0 0 20px; }
+        .student-sidebar .nav-item { justify-content: center; padding: 12px; }
+      }
+      @media (hover: hover) {
+        .student-sidebar .nav-item:hover { transform: translateX(2px); }
+        .student-sidebar .nav-item:hover .nav-icon svg { transform: scale(1.1) rotate(-4deg); }
+      }
+    `;
+    container.append(sidebarStyles);
+  }
   const content = container.querySelector("#tab-content");
 
   renderStudentOverviewPage(content, student);
+  setupStudentSidebarNav(container);
+}
+
+function setupStudentSidebarNav(container) {
+  const nav = container.querySelector(".sidebar-nav");
+  const content = container.querySelector("#tab-content");
+  if (!nav || !content) return;
+
+  nav.querySelectorAll(".nav-item:not(.logout)").forEach((button) => {
+    button.addEventListener("click", () => {
+      const section = Array.from(content.querySelectorAll(".overview-panel"))
+        .find((panel) => panel.id === button.dataset.tab);
+      if (!section) return;
+
+      setStudentSidebarActive(container, section.id);
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+function setStudentSidebarActive(container, sectionId) {
+  const nav = container.querySelector(".sidebar-nav");
+  nav?.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.toggle("active", item.dataset.tab === sectionId);
+  });
 }
 
 // =============================================================================
@@ -223,32 +351,6 @@ function renderStudentOverviewPage(el, student) {
             <span>Đăng ký thêm lớp</span>
           </button>
         </div>
-      </div>
-
-      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
-      <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
-        <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số học tập</span>
-        </a>
-        <a class="jump-pill" href="#overview-schedule">
-          <span>Thời khóa biểu tuần</span>
-        </a>
-        <a class="jump-pill" href="#overview-my-classes">
-          <span>Lớp đang học</span>
-          <span class="jump-badge">${myClasses.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-grades">
-          <span>Bảng điểm & Nhận xét</span>
-        </a>
-        <a class="jump-pill" href="#overview-materials">
-          <span>Tài liệu bài giảng</span>
-          <span class="jump-badge">${allMaterials.length}</span>
-        </a>
-        <a class="jump-pill" href="#overview-enroll">
-          <span>Đăng ký lớp mới</span>
-          <span class="jump-badge">${openClasses.filter((c) => !c.isEnrolled).length}</span>
-        </a>
       </div>
 
       <!-- 1. DIV CHỈ SỐ HỌC TẬP (KPI) -->
@@ -623,30 +725,11 @@ function renderStudentOverviewPage(el, student) {
     </div>
   `;
 
-  // Jump bar
-  setupStudentJumpBar(el);
-
   // Setup detail modals
   setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate });
 
   // Setup actions (enroll, cancel)
   setupStudentActions(el, student);
-}
-
-function setupStudentJumpBar(el) {
-  const links = el.querySelectorAll(".jump-pill");
-  links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.getAttribute("href").replace("#", "");
-      const targetEl = el.querySelector(`#${targetId}`);
-      if (targetEl) {
-        links.forEach((l) => l.classList.remove("active"));
-        link.classList.add("active");
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
 }
 
 function setupStudentDetailButtons(el, { student, myClasses, openClasses, allMaterials, overallAvg, attendanceRate }) {
@@ -842,9 +925,7 @@ function setupStudentActions(el, student) {
     const targetEl = el.querySelector("#overview-enroll");
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.querySelectorAll(".jump-pill").forEach((l) => {
-        l.classList.toggle("active", l.getAttribute("href") === "#overview-enroll");
-      });
+      setStudentSidebarActive(el.closest(".app-shell"), "overview-enroll");
       targetEl.style.transition = "box-shadow 0.3s ease, border-color 0.3s ease";
       targetEl.style.borderColor = "#863bff";
       targetEl.style.boxShadow = "0 0 0 4px rgba(134, 59, 255, 0.25)";
