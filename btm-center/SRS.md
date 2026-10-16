@@ -19,6 +19,8 @@ Phiên bản: 1.1 (MVP – cập nhật sau khi tổng hợp tài liệu) Công 
    Đăng ký tài khoản (kèm chọn môn giảng dạy), mở lớp, điểm danh, chấm điểm, nhận xét học sinh
    Học sinh
    Đăng ký tài khoản, đăng ký học lớp, xem lịch học, tài liệu, điểm, nhận xét
+   Phụ huynh
+   Đăng ký và liên kết với học sinh, xem lịch học, điểm, nhận xét và thông báo của học sinh đã liên kết
 
 1.4 Thuật ngữ
 Lớp học (Class): một lớp dạy 1 môn, 1 giáo viên phụ trách, lịch học cố định theo tuần
@@ -68,6 +70,8 @@ FR-2.2
 Khoá / mở khoá tài khoản
 FR-2.3
 Xem chi tiết lớp đang dạy/đang học của từng tài khoản
+FR-2.4
+Quản trị viên có thể liên kết, đổi hoặc gỡ liên kết tài khoản phụ huynh với tài khoản học sinh còn hoạt động
 
 3.3 Module Quản lý lớp học (M3)
 Mã

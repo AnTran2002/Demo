@@ -10,13 +10,37 @@ import { DB } from "../../core/db.js";
 export function getLinkedStudent(parentId) {
   const parent = DB.findById("users", parentId);
   if (!parent || parent.role !== "parent" || !parent.studentId) return null;
-  return DB.findById("users", parent.studentId);
+  const student = DB.findById("users", parent.studentId);
+  return student?.role === "student" ? student : null;
 }
 
 export function listParentsOfStudent(studentId) {
   return DB.getAll("users").filter(
     (u) => u.role === "parent" && u.studentId === studentId
   );
+}
+
+export function setParentStudentLink(parentId, studentId) {
+  const parent = DB.findById("users", parentId);
+  if (!parent || parent.role !== "parent") {
+    throw new Error("Tài khoản phụ huynh không tồn tại");
+  }
+
+  const code = String(studentId ?? "").trim();
+  if (!code) return DB.update("users", parentId, { studentId: null });
+
+  const student = DB.findById("users", code);
+  if (!student || student.role !== "student") {
+    throw new Error("Mã học sinh không hợp lệ");
+  }
+  if (!student.active) throw new Error(`Tài khoản học sinh ${student.fullName} đã bị khoá`);
+  if (
+    listParentsOfStudent(student.id).some((linkedParent) => linkedParent.id !== parentId)
+  ) {
+    throw new Error(`Học sinh ${student.fullName} đã có tài khoản phụ huynh được liên kết`);
+  }
+
+  return DB.update("users", parentId, { studentId: student.id });
 }
 
 // Kiểm tra mã học sinh trước khi đăng ký tài khoản phụ huynh.

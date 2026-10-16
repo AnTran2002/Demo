@@ -15,7 +15,10 @@ import {
   approveClassRequest,
   rejectClassRequest,
 } from "../../modules/classes/class-requests.service.js";
-import { getLinkedStudent } from "../../modules/parents/parents.service.js";
+import {
+  getLinkedStudent,
+  setParentStudentLink,
+} from "../../modules/parents/parents.service.js";
 import { subjectLabel, WEEKDAYS, formatDate } from "../../data/constants.js";
 import { escapeHtml } from "../../core/html.js";
 
@@ -256,6 +259,21 @@ function renderAccounts(el, filterRole = "") {
       if (row) row.hidden = !row.hidden;
     })
   );
+
+  el.querySelectorAll("[data-save-parent-link]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const parentId = btn.dataset.saveParentLink;
+      const select = el.querySelector(`[data-parent-student="${parentId}"]`);
+      try {
+        setParentStudentLink(parentId, select.value);
+        renderAccounts(el, filterRole);
+        el.querySelector(`tr.account-detail[data-detail-of="${parentId}"]`).hidden = false;
+        flash(el, "Đã cập nhật liên kết phụ huynh - học sinh.");
+      } catch (e) {
+        flash(el, e.message, "error");
+      }
+    })
+  );
 }
 
 function openEditAccount(user, onSaved) {
@@ -328,15 +346,38 @@ function openDeleteAccount(user, onDeleted) {
 function accountClassesBlock(user) {
   if (user.role === "parent") {
     const student = getLinkedStudent(user.id);
-    return student
-      ? `<div class="acct-classes">
-          <div class="acct-class">
-            <span><strong>${escapeHtml(student.fullName)}</strong></span>
-            <span class="badge student">Mã: ${student.id}</span>
-            <span class="muted">@${escapeHtml(student.username)}</span>
-          </div>
-        </div>`
-      : `<span class="muted">Tài khoản phụ huynh chưa liên kết học sinh.</span>`;
+    const students = getAdminOverview().users.filter(
+      (candidate) => candidate.role === "student" && candidate.active
+    );
+    return `
+      <div class="acct-classes">
+        ${
+          student
+            ? `<div class="acct-class">
+                <span><strong>${escapeHtml(student.fullName)}</strong></span>
+                <span class="badge student">Mã: ${escapeHtml(student.id)}</span>
+                <span class="muted">@${escapeHtml(student.username)}</span>
+              </div>`
+            : `<span class="muted">Tài khoản phụ huynh chưa liên kết học sinh.</span>`
+        }
+        <div class="acct-class">
+          <label for="parent-student-${escapeHtml(user.id)}">Liên kết với học sinh</label>
+          <select id="parent-student-${escapeHtml(user.id)}" data-parent-student="${escapeHtml(user.id)}">
+            <option value="">Chưa liên kết</option>
+            ${students
+              .map(
+                (candidate) => `
+                  <option value="${escapeHtml(candidate.id)}" ${candidate.id === student?.id ? "selected" : ""}>
+                    ${escapeHtml(candidate.fullName)} · ${escapeHtml(candidate.id)}
+                  </option>`
+              )
+              .join("")}
+          </select>
+          <button class="btn btn-sm btn-primary" data-save-parent-link="${escapeHtml(user.id)}">
+            Lưu liên kết
+          </button>
+        </div>
+      </div>`;
   }
 
   const classes = getAdminAccountClasses(user);
