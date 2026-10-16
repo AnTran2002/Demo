@@ -39,6 +39,8 @@ export function approveClassRequest(requestId) {
   } else if (req.type === "reschedule") {
     if (!req.newSchedule || !req.newSchedule.length) throw new Error("Yêu cầu thiếu lịch học mới");
     DB.update("classes", cls.id, { schedule: req.newSchedule });
+  } else if (req.type === "reopen") {
+    DB.update("classes", cls.id, { status: "open" });
   } else {
     throw new Error("Loại yêu cầu không hợp lệ");
   }

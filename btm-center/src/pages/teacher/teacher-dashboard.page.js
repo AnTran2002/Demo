@@ -1,4 +1,4 @@
-// pages/teacher/teacher-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Giảng dạy Hợp nhất (Teacher Role)
+﻿// pages/teacher/teacher-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Giảng dạy Hợp nhất (Teacher Role)
 import { Session } from "../../core/session.js";
 import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
 import {
@@ -426,15 +426,24 @@ function renderTeacherOverviewPage(el, teacher) {
                               <button class="btn btn-sm btn-primary" data-t-cls-view="${c.id}" style="width:auto;padding:5px 12px;">
                                 Chi tiết lớp
                               </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-att="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
-                                🔒 Điểm danh
-                              </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-mat="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
-                                ${isInactive ? "🔒" : ""} Tài liệu
-                              </button>
-                              <button class="btn btn-sm btn-toggle" data-t-cls-grade="${c.id}" ${disabledAttr} title="${closedTitle}" style="${disabledStyle}">
-                                ${isInactive ? "🔒" : ""} Nhập điểm
-                              </button>
+                              ${
+                                isClosed
+                                  ? `<button class="btn btn-sm btn-toggle" data-t-cls-reopen="${c.id}" style="width:auto;padding:5px 12px;">
+                                      Yêu cầu mở lại
+                                    </button>`
+                                  : isPending
+                                  ? `<span class="muted" style="font-size:12px;">Chờ Admin duyệt</span>`
+                                  : `
+                                    <button class="btn btn-sm btn-toggle" data-t-cls-att="${c.id}" style="width:auto;padding:5px 12px;">
+                                      Điểm danh
+                                    </button>
+                                    <button class="btn btn-sm btn-toggle" data-t-cls-mat="${c.id}" style="width:auto;padding:5px 12px;">
+                                      Tài liệu
+                                    </button>
+                                    <button class="btn btn-sm btn-toggle" data-t-cls-grade="${c.id}" style="width:auto;padding:5px 12px;">
+                                      Nhập điểm
+                                    </button>`
+                              }
                             </td>
                           </tr>`;
                         }
@@ -1090,7 +1099,23 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
       });
     })
   );
-}
+   // Gửi yêu cầu mở lại lớp đã đóng
+   el.querySelectorAll("[data-t-cls-reopen]").forEach((btn) =>
+     btn.addEventListener("click", () => {
+       const classId = btn.dataset.tClsReopen;
+       const cls = myClasses.find((c) => c.id === classId);
+       if (!cls || cls.status !== "closed") return;
+       DB.insert("class_requests", {
+         type: "reopen",
+         classId: cls.id,
+         teacherId: teacher.id,
+         status: "pending",
+         createdAt: new Date().toISOString(),
+       });
+       flash(el, "Đã gửi yêu cầu mở lại lớp tới Admin.");
+       renderTeacherOverviewPage(el, teacher);
+     })
+   );}
 
 // =============================================================================
 // MODAL CÁC CHỨC NĂNG NGHIỆP VỤ CỦA GIÁO VIÊN

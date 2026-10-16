@@ -1,4 +1,4 @@
-// pages/admin/admin-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Quản trị Hợp nhất
+﻿// pages/admin/admin-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Quản trị Hợp nhất
 import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
 import {
   getAdminOverview,
@@ -41,6 +41,7 @@ const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
 const REQ_TYPE_LABELS = {
   register: "Đăng ký lớp mới",
   reschedule: "Yêu cầu đổi lịch học",
+  reopen: "Yêu cầu mở lại lớp học",
 };
 
 const REQ_STATUS_LABELS = {
@@ -432,48 +433,8 @@ function renderAdminOverviewPage(el) {
               <span class="count-chip" id="chip-classes-count">${allClasses.length} lớp học (${openClassesCount} đang mở)</span>
             </div>
           </div>
-          <div class="panel-actions">
-            <button class="btn-view-detail" id="btn-detail-classes-table">
-              ${ICONS.eye}
-              <span>Xem chi tiết bảng lớp học</span>
-            </button>
-          </div>
         </div>
 
-        <!-- Toolbar tìm kiếm & lọc lớp học -->
-        <div class="overview-toolbar">
-          <div class="toolbar-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" id="cls-search-input" placeholder="Tìm theo tên lớp, giáo viên dạy..." />
-          </div>
-          <div class="toolbar-filters">
-            <select class="toolbar-select" id="cls-subject-select">
-              <option value="">Tất cả môn học</option>
-              <option value="Toan">Môn Toán</option>
-              <option value="Van">Môn Ngữ Văn</option>
-              <option value="Anh">Môn Tiếng Anh</option>
-            </select>
-            <select class="toolbar-select" id="cls-status-select">
-              <option value="">Tất cả trạng thái</option>
-              <option value="open">Đang mở hoạt động</option>
-              <option value="closed">Đã đóng</option>
-            </select>
-            <select class="toolbar-select" id="cls-teacher-select">
-              <option value="">Tất cả giáo viên</option>
-              ${teachers
-                .map((t) => `<option value="${t.id}">${escapeHtml(t.fullName)}</option>`)
-                .join("")}
-            </select>
-            <select class="toolbar-select" id="cls-weekday-select">
-              <option value="">Tất cả thứ</option>
-              ${WEEKDAYS.map((w) => `<option value="${w.value}">${w.label}</option>`).join("")}
-            </select>
-          </div>
-        </div>
-
-        <!-- Bảng danh sách lớp học -->
         <div class="table-wrap" id="cls-table-container">
           <!-- Bảng render động bởi JS -->
         </div>
@@ -974,43 +935,17 @@ function accountClassesBlock(user) {
 // =============================================================================
 function setupClassesSection(el, allClasses) {
   const container = el.querySelector("#cls-table-container");
-  const searchInput = el.querySelector("#cls-search-input");
-  const subjectSelect = el.querySelector("#cls-subject-select");
-  const statusSelect = el.querySelector("#cls-status-select");
-  const teacherSelect = el.querySelector("#cls-teacher-select");
-  const weekdaySelect = el.querySelector("#cls-weekday-select");
   const countChip = el.querySelector("#chip-classes-count");
 
-  function getFilteredList() {
-    const q = (searchInput?.value || "").trim().toLowerCase();
-    const subject = subjectSelect?.value || "";
-    const status = statusSelect?.value || "";
-    const teacher = teacherSelect?.value || "";
-    const weekday = Number(weekdaySelect?.value || "") || 0;
-
-    return allClasses.filter((c) => {
-      if (subject && c.subject !== subject) return false;
-      if (status && c.status !== status) return false;
-      if (teacher && c.teacherId !== teacher) return false;
-      if (weekday && !Array.isArray(c.schedule) ? false : !c.schedule.some((s) => s.dayOfWeek === weekday)) return false;
-      if (q) {
-        const matchesName = (c.className || "").toLowerCase().includes(q);
-        const matchesTeacher = (c.teacherName || "").toLowerCase().includes(q);
-        if (!matchesName && !matchesTeacher) return false;
-      }
-      return true;
-    });
+  if (countChip) {
+    countChip.textContent = `${allClasses.length} lớp (${allClasses.filter((c) => c.status === "open").length} đang mở)`;
   }
 
-  function renderTable() {
-    const list = getFilteredList();
-    const openCount = list.filter((c) => c.status === "open").length;
-    if (countChip) countChip.textContent = `${list.length} lớp (${openCount} đang mở)`;
-
-    if (!list.length) {
+  function renderCompactTable() {
+    if (!allClasses.length) {
       container.innerHTML = `
         <div class="empty" style="padding:28px;text-align:center;color:var(--muted);">
-          Không tìm thấy lớp học nào phù hợp.
+          Chưa có lớp học nào trong hệ thống.
         </div>`;
       return;
     }
@@ -1030,10 +965,10 @@ function setupClassesSection(el, allClasses) {
           </tr>
         </thead>
         <tbody>
-          ${list
+          ${allClasses
             .map(
               (c, i) => `
-                <tr data-class-row="${c.id}">
+                <tr>
                   <td>${i + 1}</td>
                   <td><strong>${escapeHtml(c.className)}</strong></td>
                   <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
@@ -1047,14 +982,16 @@ function setupClassesSection(el, allClasses) {
                   <td class="muted">${formatSchedule(c.schedule)}</td>
                   <td>${statusBadge(c.status)}</td>
                   <td class="actions" style="text-align:right;">
-                    <button class="btn btn-sm btn-primary" data-cls-view="${c.id}" style="width:auto;padding:5px 12px;">
-                      Xem chi tiết
-                    </button>
                     ${
                       c.status === "open"
                         ? `<button class="btn btn-sm btn-warn" data-cls-toggle-status="${c.id}" data-action="close">Đóng lớp</button>`
-                        : `<button class="btn btn-sm btn-toggle" data-cls-toggle-status="${c.id}" data-action="open">Mở lại</button>`
+                        : c.status === "closed"
+                        ? `<span class="muted" style="font-size:12px;">Chờ yêu cầu mở lại từ GV</span>`
+                        : ""
                     }
+                    <button class="btn btn-sm btn-primary" data-cls-view="${c.id}">
+                      Xem chi tiết
+                    </button>
                   </td>
                 </tr>`
             )
@@ -1062,36 +999,28 @@ function setupClassesSection(el, allClasses) {
         </tbody>
       </table>`;
 
-    // Sự kiện Xem chi tiết lớp học (hiển thị danh sách học sinh và ca học)
-    container.querySelectorAll("[data-cls-view]").forEach((btn) =>
+    container.querySelectorAll("[data-cls-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cls = allClasses.find((c) => c.id === btn.dataset.clsView);
         if (cls) openClassDetailModal(cls);
-      })
-    );
+      });
+    });
 
-    // Sự kiện Đóng lớp / Mở lại lớp
-    container.querySelectorAll("[data-cls-toggle-status]").forEach((btn) =>
+    container.querySelectorAll("[data-cls-toggle-status]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cls = allClasses.find((c) => c.id === btn.dataset.clsToggleStatus);
         if (!cls) return;
         const willClose = btn.dataset.action === "close";
         openToggleClassModal(cls, willClose, () => {
           cls.status = willClose ? "closed" : "open";
-          renderTable();
+          renderCompactTable();
           flash(el, `Đã ${willClose ? "đóng" : "mở lại"} lớp ${cls.className}.`);
         });
-      })
-    );
+      });
+    });
   }
 
-  searchInput?.addEventListener("input", renderTable);
-  subjectSelect?.addEventListener("change", renderTable);
-  statusSelect?.addEventListener("change", renderTable);
-  teacherSelect?.addEventListener("change", renderTable);
-  weekdaySelect?.addEventListener("change", renderTable);
-
-  renderTable();
+  renderCompactTable();
 }
 
 // =============================================================================

@@ -3109,7 +3109,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 #app { max-width: min(96vw, 1600px); padding: 24px 20px; }
 .app-shell { min-height: 100vh; }
 .main { min-width: 0; }
-.content { min-width: 0; overflow-x: hidden; overflow-y: auto; }
+.content { min-width: 0; overflow-x: auto; overflow-y: auto; }
 .panel, .overview-panel { overflow: hidden; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; table-layout: auto; }
@@ -3187,3 +3187,15 @@ td.actions, .actions { white-space: nowrap; }
   padding: 0 5px !important;
   font-weight: 600 !important;
 }
+.actions span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+
+}
+
