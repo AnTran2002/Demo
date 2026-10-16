@@ -792,7 +792,7 @@ const weekRow = (c) => `
 
 // ------------------------------------------------------------------ trường bảng điểm & nhận xét
 // Bảng điểm và nhận xét của giáo viên được gộp theo từng môn (từng lớp),
-// kèm điểm trung bình của từng môn và trung bình chung.
+// kèm điểm trung bình tham khảo theo lớp và trung bình chung (chưa áp dụng hệ số).
 function renderGrades(el, ctx) {
   const { student, d } = ctx;
 
@@ -823,9 +823,13 @@ function renderGrades(el, ctx) {
     <div class="stat-grid">
       ${statCard(ICONS.classes, blocks.length, "Lớp đang học")}
       ${statCard(ICONS.edit, allGrades.length, "Bài đã có điểm")}
-      ${statCard(ICONS.school, overall === null ? "—" : overall.toFixed(1), "Điểm trung bình chung")}
+      ${statCard(ICONS.school, overall === null ? "—" : overall.toFixed(1), "Điểm TB tham khảo")}
     </div>
 
+    <p class="hint-sm">
+      Điểm trung bình là trung bình cộng đơn giản của các điểm đã nhập, chưa xét loại điểm hoặc hệ số;
+      chỉ mang tính tham khảo.
+    </p>
     <div class="section-title">Bảng điểm & nhận xét theo lớp (${blocks.length} lớp)</div>
     ${
       blocks.length
@@ -846,7 +850,7 @@ const gradeBlock = ({ cls, grades, comments, avg }) => `
       </div>
       <span class="count-chip">${
         avg !== null
-          ? `Điểm TB: ${avg.toFixed(1)} · ${grades.length} bài`
+          ? `Điểm TB tham khảo: ${avg.toFixed(1)} · ${grades.length} bài`
           : "Chưa có điểm"
       }</span>
     </div>
