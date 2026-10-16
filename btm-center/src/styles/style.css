@@ -18,12 +18,17 @@ button, input, select, textarea {
   font-family: inherit;
 }
 
-body {
-  font-family: "Be Vietnam Pro", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+html, body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
   background: #f5f6fb;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: "Be Vietnam Pro", "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
 #app {
@@ -304,6 +309,7 @@ body {
   inset: 0;
   display: flex;
   background: #f5f6fb;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -593,7 +599,10 @@ body {
   border-radius: 999px;
 }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 
@@ -1337,10 +1346,8 @@ input[type="range"] {
 
 *::-webkit-scrollbar-corner { background: transparent; }
 
-.content,
 .auth-card,
-.day-checks,
-.table-wrap {
+.day-checks {
   scroll-behavior: smooth;
   overscroll-behavior: contain;
 }
@@ -3102,7 +3109,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 #app { max-width: min(96vw, 1600px); padding: 24px 20px; }
 .app-shell { min-height: 100vh; }
 .main { min-width: 0; }
-.content { min-width: 0; overflow-x: hidden; }
+.content { min-width: 0; overflow-x: hidden; overflow-y: auto; }
 .panel, .overview-panel { overflow: hidden; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; table-layout: auto; }
