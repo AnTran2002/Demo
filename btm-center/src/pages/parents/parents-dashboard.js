@@ -348,6 +348,7 @@ function renderParentOverviewPage(el, parent, student) {
                       ${
                         d.slots.length
                           ? d.slots
+                              .slice(0, 2)
                               .map(
                                 (s) => `
                                   <div class="schedule-slot-item">
@@ -359,6 +360,11 @@ function renderParentOverviewPage(el, parent, student) {
                               )
                               .join("")
                           : `<span class="muted" style="font-size:11px;margin:auto 0;text-align:center;">Không có lịch</span>`
+                      }
+                      ${
+                        d.slots.length > 2
+                          ? `<button type="button" class="schedule-more-btn" data-schedule-day="${d.day}" aria-label="Xem tất cả ${d.slots.length} ca học ${escapeHtml(d.label)}">+${d.slots.length - 2} buổi · Xem tất cả</button>`
+                          : ""
                       }
                     </div>
                   </div>`
@@ -603,7 +609,7 @@ function renderParentOverviewPage(el, parent, student) {
   setupParentJumpBar(el);
 
   // Setup detail modals
-  setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate });
+  setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate, daysWeek });
 
   // Setup action decide cancel request
   setupParentActions(el, parent, student);
@@ -625,7 +631,7 @@ function setupParentJumpBar(el) {
   });
 }
 
-function setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate }) {
+function setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate, daysWeek }) {
   // 1. Chi tiết hồ sơ của con
   el.querySelector("#btn-detail-parent-kpi")?.addEventListener("click", () => {
     openModal({
@@ -642,6 +648,37 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
           ${infoRow("Số lượng môn con đang học", `${myClasses.length} môn`)}
         </div>`,
       foot: `<button class="btn btn-primary" data-close>Đã hiểu</button>`,
+    });
+  });
+
+  el.querySelectorAll(".schedule-more-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const day = daysWeek.find((item) => item.day === Number(button.dataset.scheduleDay));
+      if (!day) return;
+
+      openModal({
+        title: `Tất cả ca học · ${day.label}`,
+        size: "modal-lg",
+        body: `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Môn học</th><th>Lớp</th><th>Khung giờ học</th><th>Giáo viên phụ trách</th></tr>
+              </thead>
+              <tbody>
+                ${day.slots.map((slot) => `
+                  <tr>
+                    <td><span class="badge subject">${subjectLabel(slot.subject)}</span></td>
+                    <td><strong>${escapeHtml(slot.className)}</strong></td>
+                    <td>${escapeHtml(slot.time)}</td>
+                    <td>${escapeHtml(slot.teacherName)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>`,
+        foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
+      });
     });
   });
 

@@ -3082,7 +3082,24 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   font-weight: 600;
 }
 
-/* Th? di?m s? & nh?n x�t */
+.schedule-more-btn {
+  align-self: flex-start;
+  padding: 3px 7px;
+  color: var(--brand-dark);
+  background: #f2ecff;
+  border: 1px solid rgba(134, 59, 255, 0.2);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.schedule-more-btn:hover {
+  background: #e9ddff;
+}
+
+/* Thẻ điểm số & nhận xét */
 .grade-matrix-card {
   display: flex;
   flex-direction: column;
