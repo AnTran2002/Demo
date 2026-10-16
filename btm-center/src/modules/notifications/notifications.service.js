@@ -193,8 +193,57 @@ function requestNotices(studentId) {
   });
 }
 
+function academicNotices(studentId) {
+  const grades = DB.getAll("grades")
+    .filter((grade) => grade.studentId === studentId && grade.createdAt)
+    .map((grade) => {
+      const cls = getClassById(grade.classId);
+      const when = dateOf(grade.createdAt);
+      return {
+        id: `grade-${grade.id}`,
+        kind: "grade",
+        tone: "success",
+        icon: "★",
+        title: "Con bạn có điểm mới",
+        message: `${cls ? `Môn ${subjectLabel(cls.subject)} (${cls.className})` : "Môn học"}: ` +
+          `${grade.type} đạt ${grade.score} điểm${grade.note ? ` · ${grade.note}` : ""}.`,
+        when,
+        sortKey: grade.createdAt,
+        request: null,
+        canApprove: false,
+        blockedReason: "",
+      };
+    });
+  const comments = DB.getAll("comments")
+    .filter((comment) => comment.studentId === studentId && comment.createdAt)
+    .map((comment) => {
+      const cls = getClassById(comment.classId);
+      const when = dateOf(comment.createdAt);
+      return {
+        id: `comment-${comment.id}`,
+        kind: "comment",
+        tone: "neutral",
+        icon: "✎",
+        title: "Giáo viên có nhận xét mới",
+        message: `${cls ? `Môn ${subjectLabel(cls.subject)} (${cls.className})` : "Môn học"}: ` +
+          comment.content,
+        when,
+        sortKey: comment.createdAt,
+        request: null,
+        canApprove: false,
+        blockedReason: "",
+      };
+    });
+
+  return [...grades, ...comments];
+}
+
 export function buildStudentNotifications(studentId) {
-  return [...attendanceNotices(studentId), ...requestNotices(studentId)].sort(
+  return [
+    ...attendanceNotices(studentId),
+    ...requestNotices(studentId),
+    ...academicNotices(studentId),
+  ].sort(
     (a, b) =>
       String(b.sortKey).localeCompare(String(a.sortKey)) ||
       String(b.id).localeCompare(String(a.id))

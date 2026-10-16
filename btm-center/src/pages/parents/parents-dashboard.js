@@ -904,6 +904,7 @@ const gradeBlock = ({ cls, grades, comments, avg }) => `
 // Nguồn dữ liệu:
 //  - Điểm danh: dựng lại từ btm_attendance (giáo viên ghi) → không nhân bản.
 //  - Yêu cầu hủy môn: đọc btm_cancel_requests (học sinh gửi) → phụ huynh duyệt.
+//  - Điểm và nhận xét: dựng lại từ dữ liệu giáo viên đã nhập.
 function renderNotices(el, ctx) {
   const { student } = ctx;
   const notices = buildStudentNotifications(student.id);
@@ -916,7 +917,8 @@ function renderNotices(el, ctx) {
       <div>
         <h2 class="panel-title">Thông báo dành cho phụ huynh</h2>
         <p class="notice-sub">
-          Điểm danh lấy trực tiếp từ dữ liệu giáo viên vừa lưu — bấm “Làm mới” để cập nhật.
+          Thông báo gồm điểm danh, điểm mới, nhận xét của giáo viên và yêu cầu hủy môn.
+          Bấm “Làm mới” để kiểm tra cập nhật mới nhất.
         </p>
       </div>
       <button class="btn btn-sm" data-refresh>${ICONS.refresh} Làm mới</button>
@@ -935,7 +937,7 @@ function renderNotices(el, ctx) {
     ${
       notices.length
         ? `<div class="notice-list">${notices.map(noticeCard).join("")}</div>`
-        : `<div class="empty panel">Chưa có thông báo nào. Thông báo sẽ xuất hiện khi giáo viên điểm danh hoặc con bạn gửi yêu cầu hủy môn.</div>`
+        : `<div class="empty panel">Chưa có thông báo nào. Thông báo sẽ xuất hiện khi giáo viên điểm danh, nhập điểm, gửi nhận xét hoặc con bạn gửi yêu cầu hủy môn.</div>`
     }
   `;
 
@@ -976,7 +978,7 @@ function noticeCard(n) {
       <div class="notice-body">
         <div class="notice-title">${escapeHtml(n.title)}</div>
         <p class="notice-text">${escapeHtml(n.message)}</p>
-        <div class="notice-meta">${n.kind === "attendance" ? "Điểm danh" : "Yêu cầu hủy môn"} · ${formatDate(n.when)}</div>
+        <div class="notice-meta">${noticeCategory(n.kind)} · ${formatDate(n.when)}</div>
         ${n.blockedReason ? `<p class="notice-warn">${escapeHtml(n.blockedReason)}</p>` : ""}
         ${
           pendingRequest
@@ -996,4 +998,12 @@ function noticeCard(n) {
         }
       </div>
     </div>`;
+}
+
+function noticeCategory(kind) {
+  if (kind === "attendance") return "Điểm danh";
+  if (kind === "cancel-request") return "Yêu cầu hủy môn";
+  if (kind === "grade") return "Điểm số";
+  if (kind === "comment") return "Nhận xét";
+  return "Thông báo";
 }

@@ -2,7 +2,14 @@
 import { DB } from "../../core/db.js";
 
 export function addGrade({ classId, studentId, type, score, note }) {
-  return DB.insert("grades", { classId, studentId, type, score, note });
+  return DB.insert("grades", {
+    classId,
+    studentId,
+    type,
+    score,
+    note,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 export function listGradesByStudentInClass(classId, studentId) {

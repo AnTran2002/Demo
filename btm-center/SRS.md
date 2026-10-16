@@ -144,6 +144,9 @@ Học sinh
 FR-9.5
 Dashboard Giáo viên cung cấp nút quản lý trực tiếp cho từng lớp và bảng điểm theo lớp chỉ hiển thị lớp, môn, nút mở bảng điểm của lớp đó
 Giáo viên
+FR-9.6
+Phụ huynh xem thông báo về điểm danh, điểm mới, nhận xét mới của giáo viên và yêu cầu hủy môn của học sinh
+Phụ huynh
 
 4. YÊU CẦU PHI CHỨC NĂNG
    Mã
@@ -167,7 +170,7 @@ Giáo viên
    sessions: { id, classId, date, title, materials[] }
    attendance: { id, sessionId, studentId, status }
    materials: { id, sessionId, fileName, fileData/fileUrl, uploadedAt }
-   grades: { id, classId, studentId, type, score, note }
+   grades: { id, classId, studentId, type, score, note, createdAt }
    comments: { id, classId, studentId, teacherId, content, createdAt }
 
 Mỗi entity lưu tại 1 key riêng trong LocalStorage; mọi thao tác đi qua lớp trừu tượng db.js dùng chung (get/save/insert/update/delete).
