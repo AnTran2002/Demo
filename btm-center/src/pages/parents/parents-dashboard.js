@@ -195,9 +195,21 @@ function renderSchedule(el, ctx) {
         : `<div class="${cls.join(" ")}">${inner}</div>`;
     })
     .join("");
-  const detail = cal.selected 
-  ? ""
-  : "";
+  const selectedSessions = cal.selected ? byDate.get(cal.selected) || [] : [];
+  const detail = cal.selected
+    ? `<div class="section-title">Buổi học ngày ${formatDate(cal.selected)} (${selectedSessions.length})</div>
+       <div class="panel">
+         ${
+           selectedSessions.length
+             ? selectedSessions
+                 .map(({ cls, session }) =>
+                   daySessionRow(cls, session, cal.selected, student.id)
+                 )
+                 .join("")
+             : `<div class="empty">Ngày này chưa có buổi học nào.</div>`
+         }
+       </div>`
+    : "";
   el.innerHTML = `
     <div class="panel cal-panel">
       <div class="cal-head">
@@ -274,8 +286,8 @@ function renderSchedule(el, ctx) {
     })
   );
 
-  // Bấm vào hàng buổi học trong bảng chi tiết ngày hoặc nút Chi tiết
-  el.querySelectorAll("[data-session-item-id]").forEach((itemEl) => {
+  // Nút Chi tiết nằm trong hàng; chỉ gắn một listener trên hàng để tránh mở popup hai lần.
+  el.querySelectorAll(".day-session-clickable").forEach((itemEl) => {
     itemEl.addEventListener("click", (e) => {
       if (e.target.closest("a")) return; // Không can thiệp liên kết tải tài liệu
       const sessId = itemEl.dataset.sessionItemId;
@@ -761,7 +773,7 @@ function daySessionRow(cls, session, iso, studentId) {
       <span class="row-end day-end">
         ${attBadge(session.id, studentId)}
         <span class="muted">${iso >= todayStr() ? "Sắp tới" : "Đã diễn ra"}</span>
-        <button type="button" class="session-btn-detail" data-session-item-id="${session.id}" data-day="${iso}">Chi tiết</button>
+        <button type="button" class="session-btn-detail">Chi tiết</button>
       </span>
     </div>`;
 }
