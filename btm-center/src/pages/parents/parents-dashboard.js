@@ -49,15 +49,25 @@ function getParentDataSnapshot() {
 }
 
 const materialLink = (m) => {
-  const isUrl = String(m.fileData || "").startsWith("http");
-  const target = isUrl
-    ? m.fileData
-    : String(m.fileData || "").startsWith("data:")
-    ? m.fileData
-    : `data:text/plain;charset=utf-8,${encodeURIComponent(m.fileData || "")}`;
-  return isUrl
-    ? `<a class="btn btn-sm btn-primary" href="${target}" target="_blank" rel="noopener" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`
-    : `<a class="btn btn-sm btn-primary" href="${target}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
+  const fileData = String(m.fileData || "");
+  let externalUrl = null;
+  try {
+    const parsedUrl = new URL(fileData);
+    if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+      externalUrl = parsedUrl.href;
+    }
+  } catch {
+    // Non-URL material content is handled as a downloadable text file below.
+  }
+
+  if (externalUrl) {
+    return `<a class="btn btn-sm btn-primary" href="${escapeHtml(externalUrl)}" target="_blank" rel="noopener noreferrer" style="width:auto;padding:4px 10px;">${ICONS.download} Mở</a>`;
+  }
+
+  const safeDataUrl = /^data:(?:application\/pdf|image\/(?:png|jpeg|gif|webp)|text\/plain)(?:;[^,]*)?,/i.test(fileData)
+    ? fileData
+    : `data:text/plain;charset=utf-8,${encodeURIComponent(fileData)}`;
+  return `<a class="btn btn-sm btn-primary" href="${escapeHtml(safeDataUrl)}" download="${escapeHtml(m.fileName)}" style="width:auto;padding:4px 10px;">${ICONS.download} Tải về</a>`;
 };
 
 function flash(el, message, type = "success") {
@@ -226,7 +236,7 @@ function renderParentOverviewPage(el, parent, student) {
         <div>
           <h2 class="welcome-title">Xin chào, ${escapeHtml(parent.fullName)}!</h2>
           <p class="welcome-sub">
-            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${student.id}</strong>) · Hôm nay: ${formatDate(todayStr())}
+            Đang theo dõi học sinh: <strong>${escapeHtml(student.fullName)}</strong> (Mã HS: <strong>${escapeHtml(student.id)}</strong>) · Hôm nay: ${formatDate(todayStr())}
           </p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
@@ -291,7 +301,7 @@ function renderParentOverviewPage(el, parent, student) {
               <div class="kpi-content">
                 <span class="kpi-val">${myClasses.length}</span>
                 <span class="kpi-tit">Số môn đang học</span>
-                <span class="kpi-sub">${myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có"}</span>
+                <span class="kpi-sub">${escapeHtml(myClasses.map((c) => subjectLabel(c.subject)).join(", ") || "Chưa có")}</span>
               </div>
             </div>
 
@@ -372,8 +382,8 @@ function renderParentOverviewPage(el, parent, student) {
                                 (s) => `
                                   <div class="schedule-slot-item">
                                     <span class="schedule-slot-title">${escapeHtml(s.className)}</span>
-                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${subjectLabel(s.subject)}</span>
-                                    <span class="schedule-slot-time">⏰ ${s.time}</span>
+                                    <span class="badge subject" style="font-size:10px;padding:1px 6px;align-self:flex-start;">${escapeHtml(subjectLabel(s.subject))}</span>
+                                    <span class="schedule-slot-time">⏰ ${escapeHtml(s.time)}</span>
                                     <span style="font-size:10.5px;color:var(--muted);">Giáo viên: ${escapeHtml(s.teacherName)}</span>
                                   </div>`
                               )
@@ -425,7 +435,7 @@ function renderParentOverviewPage(el, parent, student) {
                         <div class="grade-matrix-card">
                           <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;">
                             <div style="display:flex;align-items:center;gap:10px;">
-                              <span class="badge subject">${subjectLabel(c.subject)}</span>
+                              <span class="badge subject">${escapeHtml(subjectLabel(c.subject))}</span>
                               <strong style="font-size:15px;color:var(--brand-ink);">${escapeHtml(c.className)}</strong>
                               <span class="muted" style="font-size:12.5px;">(Thầy/Cô: ${escapeHtml(c.teacherName)})</span>
                             </div>
@@ -440,15 +450,15 @@ function renderParentOverviewPage(el, parent, student) {
                           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 15 PHÚT (HS 1)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.g15.length ? gr.g15.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.g15.join(", ") || "—")}</strong>
                             </div>
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">KIỂM TRA 1 TIẾT (HS 2)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.g45.length ? gr.g45.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.g45.join(", ") || "—")}</strong>
                             </div>
                             <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--line);">
                               <span class="muted" style="font-size:11px;font-weight:700;display:block;">THI HỌC KỲ (HS 3)</span>
-                              <strong style="color:var(--brand-ink);">${gr?.gSem.length ? gr.gSem.join(", ") : "—"}</strong>
+                              <strong style="color:var(--brand-ink);">${escapeHtml(gr?.gSem.join(", ") || "—")}</strong>
                             </div>
                           </div>
 
@@ -503,9 +513,9 @@ function renderParentOverviewPage(el, parent, student) {
                       return `
                         <tr>
                           <td>${i + 1}</td>
-                          <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong> <small class="muted">(${formatDate(sess?.date || '')})</small></td>
-                          <td><span class="badge subject">${subjectLabel(cls?.subject)}</span></td>
-                          <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                          <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong> <small class="muted">(${escapeHtml(formatDate(sess?.date || ''))})</small></td>
+                          <td><span class="badge subject">${escapeHtml(subjectLabel(cls?.subject))}</span></td>
+                          <td><span class="badge ${badgeCls}">${escapeHtml(ATTENDANCE_LABELS[a.status] || a.status)}</span></td>
                           <td>${escapeHtml(a.note || 'Không có ghi chú')}</td>
                         </tr>`;
                     }).join("")}
@@ -563,16 +573,16 @@ function renderParentOverviewPage(el, parent, student) {
                       ${
                         n.canApprove
                           ? `<div style="display:flex;gap:8px;align-items:center;">
-                              <button class="btn btn-sm btn-primary" data-p-decide="${n.request.id}" data-action="approved" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-primary" data-p-decide="${escapeHtml(n.request.id)}" data-action="approved" style="width:auto;padding:6px 12px;">
                                 Đồng ý hủy
                               </button>
-                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-danger" data-p-decide="${escapeHtml(n.request.id)}" data-action="rejected" style="width:auto;padding:6px 12px;">
                                 Không đồng ý
                               </button>
                             </div>`
                           : n.kind === 'cancel-request' && n.request?.status === 'pending'
                           ? `<div style="display:flex;gap:8px;align-items:center;">
-                              <button class="btn btn-sm btn-danger" data-p-decide="${n.request.id}" data-action="rejected" style="width:auto;padding:6px 12px;">
+                              <button class="btn btn-sm btn-danger" data-p-decide="${escapeHtml(n.request.id)}" data-action="rejected" style="width:auto;padding:6px 12px;">
                                 Đóng yêu cầu
                               </button>
                             </div>`
@@ -615,7 +625,7 @@ function renderParentOverviewPage(el, parent, student) {
                       <div class="material-file-card">
                         <div style="min-width:0;">
                           <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.fileName)}</strong>
-                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${formatDate(m.date)}</span>
+                          <span class="muted" style="font-size:11.5px;">${escapeHtml(m.className)} · ${escapeHtml(formatDate(m.date))}</span>
                         </div>
                         <div>${materialLink(m)}</div>
                       </div>`
@@ -669,7 +679,7 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
       body: `
         <div style="display:flex;flex-direction:column;gap:14px;">
           ${infoRow("Họ và tên con", escapeHtml(student.fullName))}
-          ${infoRow("Mã học sinh", student.id)}
+          ${infoRow("Mã học sinh", escapeHtml(student.id))}
           ${infoRow("Tài khoản học sinh", `@${escapeHtml(student.username)}`)}
           ${infoRow("Gmail học sinh", escapeHtml(student.email || "—"))}
           ${infoRow("Điểm trung bình các môn", `<strong>${overallAvg}</strong>`)}
@@ -697,7 +707,7 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
               <tbody>
                 ${day.slots.map((slot) => `
                   <tr>
-                    <td><span class="badge subject">${subjectLabel(slot.subject)}</span></td>
+                    <td><span class="badge subject">${escapeHtml(subjectLabel(slot.subject))}</span></td>
                     <td><strong>${escapeHtml(slot.className)}</strong></td>
                     <td>${escapeHtml(slot.time)}</td>
                     <td>${escapeHtml(slot.teacherName)}</td>
@@ -742,10 +752,10 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                 return slots;
               }).map((s) => `
                 <tr>
-                  <td><strong>${s.dayLabel}</strong></td>
-                  <td><span class="badge subject">${subjectLabel(s.subject)}</span></td>
+                  <td><strong>${escapeHtml(s.dayLabel)}</strong></td>
+                  <td><span class="badge subject">${escapeHtml(subjectLabel(s.subject))}</span></td>
                   <td><strong>${escapeHtml(s.className)}</strong></td>
-                  <td>${s.time}</td>
+                  <td>${escapeHtml(s.time)}</td>
                   <td>${escapeHtml(s.teacher)}</td>
                 </tr>
               `).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Con chưa có lịch học nào.</td></tr>`}
@@ -780,7 +790,7 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                 const avg = coe > 0 ? (tot / coe).toFixed(1) : "—";
                 return `
                   <tr>
-                    <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
+                    <td><span class="badge subject">${escapeHtml(subjectLabel(c.subject))}</span></td>
                     <td><strong>${escapeHtml(c.className)}</strong></td>
                     <td>${g15.join(", ") || "—"}</td>
                     <td>${g45.join(", ") || "—"}</td>
@@ -814,8 +824,8 @@ function setupParentDetailButtons(el, { parent, student, myClasses, notification
                   <tr>
                     <td>${i + 1}</td>
                     <td><strong>${escapeHtml(sess?.title || 'Buổi học')}</strong></td>
-                    <td>${formatDate(sess?.date || '')}</td>
-                    <td><span class="badge ${badgeCls}">${ATTENDANCE_LABELS[a.status] || a.status}</span></td>
+                    <td>${escapeHtml(formatDate(sess?.date || ''))}</td>
+                    <td><span class="badge ${badgeCls}">${escapeHtml(ATTENDANCE_LABELS[a.status] || a.status)}</span></td>
                     <td>${escapeHtml(a.note || '—')}</td>
                   </tr>`;
               }).join("") || `<tr><td colspan="5" class="muted" style="text-align:center;">Chưa có dữ liệu điểm danh.</td></tr>`}
