@@ -2,10 +2,10 @@
 import { DB } from "../../core/db.js";
 import { assertClassOpen } from "../classes/classes.service.js";
 
-export function createSession(classId, { date, title } = {}) {
+export function createSession(classId, { date, title, room } = {}) {
   // Lớp đã đóng/chưa duyệt => không thể tạo buổi học mới
   assertClassOpen(classId);
-  return DB.insert("sessions", { classId, date, title, materials: [] });
+  return DB.insert("sessions", { classId, date, title, room, materials: [] });
 }
 
 export function listSessionsByClass(classId) {

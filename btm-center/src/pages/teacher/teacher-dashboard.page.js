@@ -43,6 +43,12 @@ const statusBadge = (status) => {
   return `<span class="badge closed">Đã đóng</span>`;
 };
 
+const requestTypeLabel = (type) => {
+  if (type === "register") return "Đăng ký lớp mới";
+  if (type === "reopen") return "Yêu cầu mở lại lớp";
+  return "Yêu cầu đổi lịch học";
+};
+
 const attBadge = (sessionId) => {
   const info = sessionAttendanceInfo(sessionId);
   return info.done
@@ -643,7 +649,7 @@ function renderTeacherOverviewPage(el, teacher) {
                     (r) => `
                       <div class="row-item" style="border:1px solid var(--line);border-radius:12px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;">
                         <div>
-                          <strong>${r.type === 'register' ? 'Đăng ký lớp mới' : 'Yêu cầu đổi lịch học'} · ${escapeHtml(r.cls?.className || '')}</strong>
+                          <strong>${requestTypeLabel(r.type)} · ${escapeHtml(r.cls?.className || '')}</strong>
                           <div class="muted" style="font-size:12px;margin-top:2px;">
                             Ngày gửi: ${formatDate(String(r.createdAt).slice(0, 10))}
                             ${r.decidedAt ? ` · Xử lý lúc ${formatDate(String(r.decidedAt).slice(0, 10))}` : ''}
@@ -971,7 +977,7 @@ function setupTeacherDetailButtons(el, { teacher, myClasses, weekClasses, allSes
           ${myRequests.map((r) => `
             <div style="padding:12px;border:1px solid var(--line);border-radius:10px;background:#faf9fe;">
               <div style="display:flex;justify-content:space-between;align-items:center;">
-                <strong>${r.type === 'register' ? 'Đăng ký lớp mới' : 'Yêu cầu đổi lịch học'} · ${escapeHtml(r.cls?.className || '')}</strong>
+                <strong>${requestTypeLabel(r.type)} · ${escapeHtml(r.cls?.className || '')}</strong>
                 <span class="badge ${r.status === 'approved' ? 'active' : r.status === 'pending' ? 'late' : 'closed'}">
                   ${r.status === 'approved' ? 'Đã duyệt' : r.status === 'pending' ? 'Chờ duyệt' : 'Đã từ chối'}
                 </span>
@@ -1368,6 +1374,9 @@ function openAttendanceModal(sessionId, classId, onDone) {
 
   const { minutesElapsed, sessionEnded, sessionStarted, startTime, endTime } = timeStatus;
 
+  // Có lịch học nhưng chưa tới giờ bắt đầu → chưa thể điểm danh
+  const sessionNotStarted = minutesElapsed !== null && minutesElapsed < 0;
+
   // Mô tả trạng thái thời gian hiện tại
   let timeInfoHtml = "";
   if (sessionEnded) {
@@ -1458,12 +1467,12 @@ function openAttendanceModal(sessionId, classId, onDone) {
       </div>`,
     foot: `
       <button class="btn" data-close>Hủy</button>
-      ${sessionEnded || classLocked
-        ? `<button class="btn" disabled style="opacity:0.5;cursor:not-allowed;">Không thể lưu ${classLocked ? "(Lớp đã đóng/chưa duyệt)" : "(Buổi đã kết thúc)"}</button>`
+      ${sessionEnded || classLocked || sessionNotStarted
+        ? `<button class="btn" disabled style="opacity:0.5;cursor:not-allowed;">Không thể lưu ${classLocked ? "(Lớp đã đóng/chưa duyệt)" : sessionEnded ? "(Buổi đã kết thúc)" : "(Buổi chưa bắt đầu)"}</button>`
         : `<button class="btn btn-primary" id="btn-save-attendance">Lưu kết quả điểm danh</button>`
       }`,
     onMount: (root, close) => {
-      if (sessionEnded || classLocked) return; // Không gán sự kiện nếu không thể thao tác
+      if (sessionEnded || classLocked || sessionNotStarted) return; // Không gán sự kiện nếu không thể thao tác
 
       root.querySelector("#btn-save-attendance")?.addEventListener("click", () => {
         const rows = root.querySelectorAll("tr[data-st-att]");
