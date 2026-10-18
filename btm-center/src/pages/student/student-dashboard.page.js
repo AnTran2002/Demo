@@ -1,6 +1,6 @@
 // pages/student/student-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Học tập Hợp nhất (Student Role)
 import { Session } from "../../core/session.js";
-import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
+import { renderShell, ICONS, formatSchedule } from "../shell.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
 import { enroll } from "../../modules/enrollment/enrollment.service.js";
 import {
@@ -15,23 +15,15 @@ import { listGradesByStudentInClass } from "../../modules/grades/grades.service.
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
 import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { listStudentsOfClass, getClassById } from "../../modules/classes/classes.service.js";
-import { DB } from "../../core/db.js";
 import { escapeHtml } from "../../core/html.js";
 import {
   subjectLabel,
   formatDate,
   todayStr,
-  ATTENDANCE_LABELS,
   WEEKDAYS,
 } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
-
-const statusBadge = (status) => {
-  if (status === "open") return `<span class="badge open">Đang mở</span>`;
-  if (status === "pending") return `<span class="badge late">Chờ phê duyệt</span>`;
-  return `<span class="badge closed">Đã đóng</span>`;
-};
 
 const materialLink = (m) => {
   const isUrl = String(m.fileData || "").startsWith("http");

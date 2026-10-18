@@ -1,6 +1,6 @@
 // pages/parents/parents-dashboard.js — Redesign Toàn diện: Trang Tổng quan Phụ huynh Hợp nhất (Parent Role)
 import { Session } from "../../core/session.js";
-import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
+import { renderShell, ICONS } from "../shell.js";
 import { getLinkedStudent } from "../../modules/parents/parents.service.js";
 import { escapeHtml } from "../../core/html.js";
 import {
@@ -10,13 +10,11 @@ import {
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
 import {
   listSessionsByClass,
-  listAttendanceBySession,
   listAttendanceOfStudent,
 } from "../../modules/sessions/sessions.service.js";
 import { listGradesByStudentInClass } from "../../modules/grades/grades.service.js";
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
 import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
-import { listUsers } from "../../modules/users/users.service.js";
 import { getClassById } from "../../modules/classes/classes.service.js";
 import { DB } from "../../core/db.js";
 import {

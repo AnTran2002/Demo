@@ -1,6 +1,6 @@
 ﻿// pages/teacher/teacher-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Giảng dạy Hợp nhất (Teacher Role)
 import { Session } from "../../core/session.js";
-import { renderShell, ICONS, formatSchedule, ROLE_LABELS } from "../shell.js";
+import { renderShell, ICONS, formatSchedule } from "../shell.js";
 import {
   getTeacherOverview,
   getTeacherWeekSchedule,
@@ -8,8 +8,6 @@ import {
 } from "../../modules/dashboard/dashboard.service.js";
 import {
   createClass,
-  updateClassInfo,
-  setClassStatus,
   getClassById,
   listStudentsOfClass,
 } from "../../modules/classes/classes.service.js";
@@ -17,7 +15,6 @@ import {
   createSession,
   markAttendance,
   listAttendanceBySession,
-  listUpcomingSessionsByClass,
   listSessionsByClass,
 } from "../../modules/sessions/sessions.service.js";
 import { attachMaterial, listMaterialsBySession } from "../../modules/materials/materials.service.js";
@@ -31,8 +28,6 @@ import {
   subjectLabel,
   formatDate,
   todayStr,
-  ATTENDANCE_LABELS,
-  GRADE_TYPES,
 } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));

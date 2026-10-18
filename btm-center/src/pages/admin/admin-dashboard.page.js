@@ -724,25 +724,6 @@ function renderAdminOverviewPage(el) {
 }
 
 // =============================================================================
-// THIẾT LẬP THANH ĐIỀU HƯỚNG NHANH (STICKY JUMP BAR)
-// =============================================================================
-function setupJumpBar(el) {
-  const links = el.querySelectorAll(".jump-pill");
-  links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.getAttribute("href").replace("#", "");
-      const targetEl = el.querySelector(`#${targetId}`);
-      if (targetEl) {
-        links.forEach((l) => l.classList.remove("active"));
-        link.classList.add("active");
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
-}
-
-// =============================================================================
 // QUẢN LÝ BẢNG TÀI KHOẢN (TÌM KIẾM, LỌC, XEM CHI TIẾT TỪNG DÒNG, SỬA, XÓA, KHÓA)
 // =============================================================================
 function setupAccountsSection(el, initialUsers) {
@@ -1320,57 +1301,7 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
     });
   });
 
-  // 3. Xem chi tiết Bảng Lớp học
-  el.querySelector("#btn-detail-classes-table")?.addEventListener("click", () => {
-    openModal({
-      title: "Bảng Chi tiết Toàn bộ Lớp học & Giảng dạy",
-      size: "modal-xl",
-      body: `
-        <div style="display:flex;flex-direction:column;gap:14px;">
-          <div style="display:flex;gap:14px;flex-wrap:wrap;padding:12px 16px;background:#f8f7fd;border-radius:10px;">
-            <span>Tổng số: <strong>${allClasses.length} lớp học</strong></span>
-            <span>· Đang mở: <strong>${allClasses.filter((c) => c.status === "open").length}</strong></span>
-            <span>· Đã đóng: <strong>${allClasses.filter((c) => c.status === "closed").length}</strong></span>
-            <span>· Tổng sĩ số: <strong>${allClasses.reduce((s, c) => s + (c.enrolled || 0), 0)} học sinh</strong></span>
-          </div>
-
-          <div class="table-wrap" style="max-height:480px;overflow-y:auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th><th>Tên lớp</th><th>Môn</th><th>Giáo viên</th><th>Sĩ số</th><th>Tỷ lệ lấp đầy</th><th>Lịch học</th><th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${allClasses
-                  .map(
-                    (c, idx) => `
-                      <tr>
-                        <td>${idx + 1}</td>
-                        <td><strong>${escapeHtml(c.className)}</strong></td>
-                        <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
-                        <td>${escapeHtml(c.teacherName)}</td>
-                        <td>${c.enrolled}/${c.maxSlot}</td>
-                        <td>
-                          <span class="slot-cell">
-                            <span class="slot-text">${pct(c.enrolled, c.maxSlot)}%</span>
-                            <span class="slot-bar"><i style="width:${pct(c.enrolled, c.maxSlot)}%"></i></span>
-                          </span>
-                        </td>
-                        <td class="muted">${formatSchedule(c.schedule)}</td>
-                        <td>${statusBadge(c.status)}</td>
-                      </tr>`
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-        </div>`,
-      foot: `<button class="btn btn-primary" data-close>Đóng</button>`,
-    });
-  });
-
-  // 4. Xem chi tiết Bảng Thông báo & Yêu cầu
+  // 3. Xem chi tiết Bảng Thông báo & Yêu cầu
   el.querySelector("#btn-detail-requests-table")?.addEventListener("click", () => {
     openModal({
       title: "Bảng Chi tiết Yêu cầu & Thông báo từ Giáo viên",
@@ -1434,7 +1365,7 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
     });
   });
 
-  // 5. Xem chi tiết Phân tích
+  // 4. Xem chi tiết Phân tích
   el.querySelector("#btn-detail-analytics")?.addEventListener("click", () => {
     openModal({
       title: "Báo cáo Phân tích Chuyên sâu Hoạt động Trung tâm",
@@ -1482,7 +1413,7 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
     });
   });
 
-  // 6. Xem chi tiết Nhật ký
+  // 5. Xem chi tiết Nhật ký
   el.querySelector("#btn-detail-logs")?.addEventListener("click", () => {
     openModal({
       title: "Nhật ký Hoạt động & Hệ thống",
