@@ -2374,83 +2374,6 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
   gap: 24px;
 }
 
-/* Thanh nh?y nhanh (Quick Jump Sticky Bar) */
-.overview-jump-bar {
-  position: sticky;
-  top: -10px;
-  z-index: 9;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(134, 59, 255, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 4px 18px -4px rgba(43, 10, 94, 0.08);
-  flex-wrap: wrap;
-  overflow-x: visible;
-  white-space: normal;
-}
-
-.jump-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin-right: 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.jump-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #4b4668;
-  background: #f7f6fc;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.jump-pill:hover {
-  color: var(--brand-ink);
-  background: #ede8ff;
-  border-color: rgba(134, 59, 255, 0.25);
-  transform: translateY(-1px);
-}
-
-.jump-pill.active {
-  color: #fff;
-  background: linear-gradient(135deg, #7c2dff, #5e1bd6);
-  box-shadow: 0 4px 12px -2px rgba(94, 27, 214, 0.35);
-}
-
-.jump-badge {
-  display: inline-block;
-  padding: 1px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
-  color: inherit;
-}
-
-.jump-pill.active .jump-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
-}
-
 /* Kh?i Panel T?ng quan */
 .overview-panel {
   background: #fff;
@@ -3223,30 +3146,6 @@ td.actions, .actions { white-space: nowrap; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* Tinh gon jump bar (xem nhanh muc) */
-.overview-jump-bar {
-  padding: 8px 10px !important;
-  gap: 6px !important;
-}
-.jump-label {
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
-  color: var(--muted) !important;
-}
-.jump-label svg { width: 12px !important; height: 12px !important; }
-.jump-pill {
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  padding: 4px 10px !important;
-  border-radius: 8px !important;
-}
-.jump-badge {
-  font-size: 11px !important;
-  padding: 0 5px !important;
-  font-weight: 600 !important;
 }
 .actions span {
   display: flex;

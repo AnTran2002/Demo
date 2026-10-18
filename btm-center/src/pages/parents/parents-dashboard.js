@@ -248,37 +248,6 @@ function renderParentOverviewPage(el, parent, student) {
         </div>
       </div>
 
-      <!-- Thanh nhảy nhanh (Quick Jump Sticky Bar) -->
-      <div class="overview-jump-bar" id="overview-jump-bar">
-        <span class="jump-label">${ICONS.grid} Xem nhanh mục:</span>
-        <a class="jump-pill active" href="#overview-kpis">
-          <span>Chỉ số của con</span>
-        </a>
-        <a class="jump-pill" href="#overview-schedule">
-          <span>Lịch học tuần này</span>
-          <span class="jump-badge">${myClasses.length} môn</span>
-        </a>
-        <a class="jump-pill" href="#overview-grades">
-          <span>Bảng điểm & Lời phê</span>
-        </a>
-        <a class="jump-pill" href="#overview-attendance">
-          <span>Theo dõi Chuyên cần</span>
-          <span class="jump-badge">${attendanceList.length} buổi</span>
-        </a>
-        <a class="jump-pill" href="#overview-notifications">
-          <span>Thông báo & Phê duyệt</span>
-          ${
-            pendingCancelRequests.length
-              ? `<span class="jump-badge" style="background:#ffdd00;color:#5a4100;font-weight:800;">${pendingCancelRequests.length}</span>`
-              : `<span class="jump-badge">0</span>`
-          }
-        </a>
-        <a class="jump-pill" href="#overview-materials">
-          <span>Tài liệu bài học của con</span>
-          <span class="jump-badge">${allMaterials.length}</span>
-        </a>
-      </div>
-
       <!-- 1. DIV CHỈ SỐ HỌC TẬP CỦA CON (KPI) -->
       <div class="overview-panel" id="overview-kpis">
         <div class="panel-head-overview">
@@ -643,9 +612,6 @@ function renderParentOverviewPage(el, parent, student) {
     </div>
   `;
 
-  // Jump bar
-  setupParentJumpBar(el);
-
   // Setup detail modals
   setupParentDetailButtons(el, { parent, student, myClasses, notifications, attendanceList, allMaterials, overallAvg, attRate, daysWeek });
 
@@ -654,24 +620,6 @@ function renderParentOverviewPage(el, parent, student) {
 
   // Keep the parent dashboard in sync with updates from other tabs.
   setupParentAutoRefresh(el, parent, student);
-}
-
-function setupParentJumpBar(el) {
-  const appShell = el.closest(".app-shell");
-  const links = el.querySelectorAll(".jump-pill");
-  links.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = link.getAttribute("href").replace("#", "");
-      const targetEl = el.querySelector(`#${targetId}`);
-      if (targetEl) {
-        links.forEach((l) => l.classList.remove("active"));
-        link.classList.add("active");
-        setParentSidebarActive(appShell, targetId);
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
 }
 
 function setupParentSidebarNav(container) {
@@ -685,9 +633,6 @@ function setupParentSidebarNav(container) {
       if (!section) return;
 
       setParentSidebarActive(container, section.id);
-      content.querySelectorAll(".jump-pill").forEach((link) => {
-        link.classList.toggle("active", link.getAttribute("href") === `#${section.id}`);
-      });
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
