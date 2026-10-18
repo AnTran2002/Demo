@@ -349,6 +349,54 @@ function ensureEntity(entity, seedData) {
   if (DB.getAll(entity).length === 0) DB.saveAll(entity, seedData);
 }
 
+// Migration 1 lần: gộp tài khoản bị trùng do lịch sử đổi username mặc định.
+// Các phiên bản trước dùng username khác (teacher, covan, coanh, student, student2,
+// student3, parent) nhưng vẫn giữ nguyên id (t-toan, s-01, p-01...). Vì seed cũ đối
+// chiếu trùng theo username nên khi cập nhật, bản ghi mới được thêm vào trong khi bản
+// ghi cũ cùng id vẫn còn → bảng quản lý tài khoản hiển thị lặp và các thao tác
+// (khóa/sửa/xóa) chỉ tác động bản ghi đầu tiên tìm thấy theo id.
+// Hàm đổi username cũ về username hiện tại rồi gộp các bản ghi trùng id (hoặc trùng
+// username), giữ bản ghi xuất hiện sau (bản seed mới), bù các trường chỉ có ở bản cũ.
+const LEGACY_USERNAMES = {
+  teacher: "gv-hung",
+  covan: "gv-lan",
+  coanh: "gv-duc",
+  student: "hs-trang",
+  student2: "hs-huy",
+  student3: "hs-ngoc",
+  parent: "ph-thu-huong",
+};
+
+function dedupeLegacyUsers() {
+  const users = DB.getAll("users");
+  if (users.length < 2) return;
+
+  const kept = []; // giữ vị trí xuất hiện đầu tiên của mỗi tài khoản
+  const at = new Map(); // id/username → vị trí bản ghi trong kept
+  let changed = false;
+
+  users.forEach((user) => {
+    const username = LEGACY_USERNAMES[user.username] || user.username;
+    const item = username === user.username ? user : { ...user, username };
+    if (item !== user) changed = true;
+
+    const pos = at.get(item.id) ?? at.get(item.username) ?? -1;
+    if (pos === -1) {
+      kept.push(item);
+      at.set(item.id, kept.length - 1);
+      at.set(item.username, kept.length - 1);
+      return;
+    }
+
+    changed = true;
+    kept[pos] = { ...kept[pos], ...item };
+    at.set(kept[pos].id, pos);
+    at.set(kept[pos].username, pos);
+  });
+
+  if (changed) DB.saveAll("users", kept);
+}
+
 // Migration 1 lần: gỡ tài khoản đăng ký tay "Nguyễn Công Minh".
 // Tài khoản này được tạo thủ công qua form đăng ký nên chỉ tồn tại trong
 // LocalStorage của trình duyệt, không có trong seed — vì vậy phải dọn ở đây.
@@ -398,9 +446,16 @@ function cleanDanglingLinks() {
 }
 
 export function seedDatabase() {
+  // Gộp tài khoản trùng id/username còn sót từ dữ liệu cũ (xem dedupeLegacyUsers).
+  dedupeLegacyUsers();
+
   const users = DB.getAll("users");
   const missingDefaults = DEFAULT_USERS.filter(
-    (u) => !users.some((x) => x.username === u.username)
+    (u) =>
+      !users.some((x) => x.username === u.username) &&
+      // Trùng Gmail cũng tính là đã tồn tại: tránh thêm lại tài khoản mặc định khi
+      // tài khoản tương ứng từng mang username khác ở phiên bản trước.
+      !users.some((x) => x.email && u.email && x.email.toLowerCase() === u.email.toLowerCase())
   );
 
   // Luôn đảm bảo các tài khoản default tồn tại:
@@ -412,6 +467,10 @@ export function seedDatabase() {
   } else if (missingDefaults.length > 0) {
     DB.saveAll("users", [...users, ...missingDefaults]);
   }
+
+  // Bản ghi mặc định vừa bổ sung có thể trùng id với bản ghi cũ (username chưa có
+  // trong LEGACY_USERNAMES) → gộp ngay trong lần chạy này.
+  dedupeLegacyUsers();
 
   // Bổ sung trường còn thiếu (gender/email/dob) cho các tài khoản default đã tồn tại từ trước.
   const current = DB.getAll("users");
