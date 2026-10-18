@@ -126,26 +126,28 @@ const infoRow = (key, value) => `
   </div>`;
 
 // =============================================================================
-// KHỞI TẠO TRANG PHỤ HUYNH: DUY NHẤT 1 TAB "TỔNG QUAN"
+// KHỞI TẠO TRANG PHỤ HUYNH
 // =============================================================================
 export function renderParentsDashboard(container) {
   const parent = Session.getCurrentUser();
   const student = getLinkedStudent(parent.id);
 
-  const tabs = [
-    {
-      id: "overview",
-      label: "Tổng quan",
-      icon: ICONS.grid,
-      active: true,
-      render: (content) => renderParentOverviewPage(content, parent, student),
-    },
-  ];
+  const tabs = student
+    ? [
+        { id: "overview-kpis", label: "Tổng quan", icon: ICONS.grid, active: true },
+        { id: "overview-schedule", label: "Lịch học", icon: ICONS.calendar },
+        { id: "overview-grades", label: "Bảng điểm & Nhận xét", icon: ICONS.edit },
+        { id: "overview-attendance", label: "Chuyên cần", icon: ICONS.check },
+        { id: "overview-notifications", label: "Thông báo", icon: ICONS.bell },
+        { id: "overview-materials", label: "Tài liệu học tập", icon: ICONS.paperclip },
+      ]
+    : [{ id: "overview-kpis", label: "Tổng quan", icon: ICONS.grid, active: true }];
 
   renderShell(container, { title: "Tổng quan Theo dõi Học tập", items: tabs });
   const content = container.querySelector("#tab-content");
 
   renderParentOverviewPage(content, parent, student);
+  setupParentSidebarNav(container);
 }
 
 // =============================================================================
@@ -154,7 +156,7 @@ export function renderParentsDashboard(container) {
 function renderParentOverviewPage(el, parent, student) {
   if (!student) {
     el.innerHTML = `
-      <div class="panel" style="padding:32px;text-align:center;">
+      <div class="panel" id="overview-kpis" style="padding:32px;text-align:center;">
         <h2 style="color:var(--brand-ink);">Tài khoản chưa liên kết học sinh</h2>
         <p class="muted">Tài khoản phụ huynh của bạn chưa được liên kết với mã học sinh nào. Vui lòng liên hệ ban quản trị để hỗ trợ.</p>
       </div>`;
@@ -655,6 +657,7 @@ function renderParentOverviewPage(el, parent, student) {
 }
 
 function setupParentJumpBar(el) {
+  const appShell = el.closest(".app-shell");
   const links = el.querySelectorAll(".jump-pill");
   links.forEach((link) => {
     link.addEventListener("click", (e) => {
@@ -664,9 +667,35 @@ function setupParentJumpBar(el) {
       if (targetEl) {
         links.forEach((l) => l.classList.remove("active"));
         link.classList.add("active");
+        setParentSidebarActive(appShell, targetId);
         targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
+  });
+}
+
+function setupParentSidebarNav(container) {
+  const nav = container.querySelector(".sidebar-nav");
+  const content = container.querySelector("#tab-content");
+  if (!nav || !content) return;
+
+  nav.querySelectorAll(".nav-item:not(.logout)").forEach((button) => {
+    button.addEventListener("click", () => {
+      const section = content.querySelector(`#${button.dataset.tab}`);
+      if (!section) return;
+
+      setParentSidebarActive(container, section.id);
+      content.querySelectorAll(".jump-pill").forEach((link) => {
+        link.classList.toggle("active", link.getAttribute("href") === `#${section.id}`);
+      });
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+function setParentSidebarActive(container, sectionId) {
+  container.querySelectorAll(".sidebar-nav .nav-item:not(.logout)").forEach((item) => {
+    item.classList.toggle("active", item.dataset.tab === sectionId);
   });
 }
 
