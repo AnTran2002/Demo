@@ -1695,7 +1695,10 @@ function openCreateSessionModal(myClasses, onDone) {
         </div>
         <div>
           <label for="sess-date">Ngày học *</label>
-          <input id="sess-date" type="date" value="${todayStr()}" />
+          <input id="sess-date" type="date" min="${todayStr()}" value="${todayStr()}" />
+          <p class="muted" style="font-size:12px;margin:0;">
+            Buổi học chỉ có thể diễn ra trong tương lai — không thể tạo buổi học trong quá khứ.
+          </p>
         </div>
         <div>
           <label for="sess-room">Phòng học / Ghi chú</label>
@@ -1717,6 +1720,13 @@ function openCreateSessionModal(myClasses, onDone) {
 
         if (!title || !date) {
           err.textContent = "Vui lòng nhập tên buổi học và ngày học.";
+          err.hidden = false;
+          return;
+        }
+
+        // Chỉ cho phép tạo buổi học từ hôm nay trở đi (không tạo lùi về quá khứ)
+        if (date < todayStr()) {
+          err.textContent = "Không thể tạo buổi học trong quá khứ. Vui lòng chọn ngày từ hôm nay trở đi.";
           err.hidden = false;
           return;
         }

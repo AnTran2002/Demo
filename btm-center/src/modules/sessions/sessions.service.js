@@ -1,10 +1,16 @@
 // modules/sessions/sessions.service.js — Phụ trách: Thành viên C
 import { DB } from "../../core/db.js";
 import { assertClassOpen } from "../classes/classes.service.js";
+import { todayStr } from "../../data/constants.js";
 
 export function createSession(classId, { date, title, room } = {}) {
   // Lớp đã đóng/chưa duyệt => không thể tạo buổi học mới
   assertClassOpen(classId);
+  // Buổi học chỉ được tạo từ hôm nay trở đi, không thể tạo lùi ngày trong quá khứ
+  if (!date) throw new Error("Vui lòng chọn ngày học");
+  if (date < todayStr()) {
+    throw new Error("Không thể tạo buổi học trong quá khứ — chỉ có thể tạo buổi học từ hôm nay trở đi");
+  }
   return DB.insert("sessions", { classId, date, title, room, materials: [] });
 }
 
