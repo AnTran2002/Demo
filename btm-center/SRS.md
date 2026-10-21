@@ -73,9 +73,9 @@ Xem chi tiết lớp đang dạy/đang học của từng tài khoản
 Mã
 Chức năng
 FR-3.1
-Giáo viên tạo lớp: tên lớp, lịch cố định (thứ, giờ bắt đầu/kết thúc), sĩ số tối đa. Môn học tự động lấy theo hồ sơ giáo viên, không hiển thị lựa chọn môn khác
+Giáo viên tạo lớp: tên lớp, số buổi học trong tuần (1 hoặc 2 buổi), mỗi buổi có lịch cố định (thứ, giờ bắt đầu/kết thúc) và phải nằm ở 2 ngày khác nhau. Mỗi lớp tối đa 20 học sinh. Môn học tự động lấy theo hồ sơ giáo viên, không hiển thị lựa chọn môn khác
 FR-3.2
-Giáo viên sửa/đóng lớp
+Giáo viên sửa lớp; muốn đóng lớp thì gửi yêu cầu tới Quản trị viên, chỉ khi Admin phê duyệt yêu cầu thì lớp mới đóng (Admin không tự ý đóng lớp)
 FR-3.3
 Xem danh sách học sinh trong lớp
 
@@ -93,7 +93,7 @@ Học sinh huỷ đăng ký (trước buổi học đầu tiên)
 Mã
 Chức năng
 FR-5.1
-Giáo viên tạo buổi học theo ngày cụ thể (thủ công)
+Giáo viên tạo buổi học theo ngày cụ thể (thủ công), buộc tuân theo lịch học cố định đã đăng ký của lớp: ngày của buổi học phải là một trong các thứ trong tuần của lịch lớp (ví dụ lớp học Thứ 2 – Thứ 6 thì buổi học chỉ được tạo vào Thứ 2 hoặc Thứ 6). Khi mở form, hệ thống tự động chọn ngày hợp lệ kế tiếp theo lịch lớp
 FR-5.2
 Giáo viên nhập tiêu đề bài học cho buổi
 FR-5.3

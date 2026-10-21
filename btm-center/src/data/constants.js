@@ -57,6 +57,29 @@ export function todayStr() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Thứ trong tuần theo quy ước của hệ thống: 2 = Thứ 2 … 7 = Thứ 7, 8 = Chủ nhật
+export function weekdayOf(dateStr) {
+  if (!dateStr) return 0;
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return 0;
+  const js = d.getDay(); // 0 = Chủ nhật, 1 = Thứ 2 … 6 = Thứ 7
+  return js === 0 ? 8 : js + 1;
+}
+
+// Nhãn thứ trong tuần: weekdayLabel(3) → "Thứ 3"
+export function weekdayLabel(value) {
+  return WEEKDAYS.find((w) => w.value === Number(value))?.label || `Thứ ${value}`;
+}
+
+// Cộng/trừ số ngày vào một chuỗi ngày YYYY-MM-DD
+export function addDays(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate() + days);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export function formatDate(iso) {
   if (!iso) return "—";
   const [y, m, d] = String(iso).split("-");

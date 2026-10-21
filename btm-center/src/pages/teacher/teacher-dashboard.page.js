@@ -10,12 +10,17 @@ import {
   createClass,
   getClassById,
   listStudentsOfClass,
+  MAX_SESSIONS_PER_WEEK,
+  MAX_STUDENTS_PER_CLASS,
 } from "../../modules/classes/classes.service.js";
 import {
   createSession,
-  markAttendance,
+  getNextSessionDate,
+  getScheduledWeekdays,
   listAttendanceBySession,
   listSessionsByClass,
+  listUpcomingScheduledDates,
+  markAttendance,
 } from "../../modules/sessions/sessions.service.js";
 import {
   attachMaterial,
@@ -29,7 +34,12 @@ import {
   addComment,
   listCommentsByClass,
 } from "../../modules/comments/comments.service.js";
-import { listClassRequests } from "../../modules/classes/class-requests.service.js";
+import {
+  createClassRequest,
+  listClassRequests,
+  requestCloseClass,
+  requestReopenClass,
+} from "../../modules/classes/class-requests.service.js";
 import { DB } from "../../core/db.js";
 import { escapeHtml } from "../../core/html.js";
 import {
@@ -37,6 +47,8 @@ import {
   subjectLabel,
   formatDate,
   todayStr,
+  weekdayLabel,
+  weekdayOf,
 } from "../../data/constants.js";
 
 const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
@@ -51,6 +63,7 @@ const statusBadge = (status) => {
 const requestTypeLabel = (type) => {
   if (type === "register") return "Đăng ký lớp mới";
   if (type === "reopen") return "Yêu cầu mở lại lớp";
+  if (type === "close") return "Yêu cầu đóng lớp";
   return "Yêu cầu đổi lịch học";
 };
 
@@ -292,6 +305,11 @@ function renderTeacherOverviewPage(el, teacher) {
     (r) => r.teacher?.id === teacher.id || r.teacherId === teacher.id,
   );
   const pendingRequests = myRequests.filter((r) => r.status === "pending");
+
+  // Các lớp đang có yêu cầu đóng lớp chờ Admin phê duyệt
+  const pendingCloseClassIds = new Set(
+    pendingRequests.filter((r) => r.type === "close").map((r) => r.classId),
+  );
 
   // Thời khóa biểu theo các ngày trong tuần (2 - 8)
   const currentDow = new Date().getDay() === 0 ? 8 : new Date().getDay() + 1;
@@ -541,7 +559,14 @@ function renderTeacherOverviewPage(el, teacher) {
                                       </button>
                                       <button class="btn btn-sm btn-toggle" data-t-cls-grade="${c.id}" style="width:auto;padding:5px 12px;">
                                         Nhập điểm
-                                      </button>`
+                                      </button>
+                                      ${
+                                        pendingCloseClassIds.has(c.id)
+                                          ? `<span class="muted" style="font-size:12px;" title="Yêu cầu đóng lớp đang chờ Quản trị viên phê duyệt">Chờ duyệt</span>`
+                                          : `<button class="btn btn-sm btn-warn" data-t-cls-close="${c.id}" style="width:auto;padding:5px 12px;" title="Gửi yêu cầu đóng lớp tới Quản trị viên">
+                                              Yêu cầu đóng lớp
+                                            </button>`
+                                      }`
                                 }
                               </div>
                             </td>
@@ -724,6 +749,11 @@ function renderTeacherOverviewPage(el, teacher) {
                             Ngày gửi: ${formatDate(String(r.createdAt).slice(0, 10))}
                             ${r.decidedAt ? ` · Xử lý lúc ${formatDate(String(r.decidedAt).slice(0, 10))}` : ""}
                           </div>
+                          ${
+                            r.status === "rejected" && r.rejectReason
+                              ? `<div class="muted" style="font-size:12px;margin-top:4px;color:#c0392b;">Lý do từ chối: ${escapeHtml(r.rejectReason)}</div>`
+                              : ""
+                          }
                         </div>
                         <span class="badge ${r.status === "approved" ? "active" : r.status === "pending" ? "late" : "closed"}">
                           ${r.status === "approved" ? "Đã phê duyệt" : r.status === "pending" ? "Đang chờ duyệt" : "Đã từ chối"}
@@ -1392,20 +1422,31 @@ function setupTeacherActions(el, teacher, myClasses, allSessions) {
       });
     }),
   );
-  // Gửi yêu cầu mở lại lớp đã đóng
+  // Gửi yêu cầu mở lại lớp đã đóng (Admin phê duyệt thì lớp mới mở)
   el.querySelectorAll("[data-t-cls-reopen]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const classId = btn.dataset.tClsReopen;
-      const cls = myClasses.find((c) => c.id === classId);
-      if (!cls || cls.status !== "closed") return;
-      DB.insert("class_requests", {
-        type: "reopen",
-        classId: cls.id,
-        teacherId: teacher.id,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-      flash(el, "Đã gửi yêu cầu mở lại lớp tới Admin.");
+      try {
+        requestReopenClass(teacher, classId);
+        flash(el, "Đã gửi yêu cầu mở lại lớp tới Admin.");
+      } catch (e) {
+        flash(el, e.message, "error");
+        return;
+      }
+      renderTeacherOverviewPage(el, teacher);
+    }),
+  );
+  // Gửi yêu cầu đóng lớp (Admin phê duyệt thì lớp mới đóng)
+  el.querySelectorAll("[data-t-cls-close]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const classId = btn.dataset.tClsClose;
+      try {
+        requestCloseClass(teacher, classId);
+        flash(el, "Đã gửi yêu cầu đóng lớp tới Admin.");
+      } catch (e) {
+        flash(el, e.message, "error");
+        return;
+      }
       renderTeacherOverviewPage(el, teacher);
     }),
   );
@@ -2000,6 +2041,9 @@ function openAddCommentModal(student, cls, onDone) {
 }
 
 function openCreateSessionModal(myClasses, onDone) {
+  // Chỉ các lớp đang mở mới tạo được buổi học mới
+  const openClasses = myClasses.filter((c) => c.status === "open");
+
   openModal({
     title: "Thêm Buổi học Mới cho Lớp",
     body: `
@@ -2007,7 +2051,16 @@ function openCreateSessionModal(myClasses, onDone) {
         <div>
           <label for="sess-class">Chọn lớp học *</label>
           <select id="sess-class" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
-            ${myClasses.map((c) => `<option value="${c.id}">${escapeHtml(c.className)}</option>`).join("")}
+            ${
+              openClasses.length
+                ? openClasses
+                    .map(
+                      (c) =>
+                        `<option value="${c.id}">${escapeHtml(c.className)} · ${escapeHtml(formatSchedule(c.schedule))}</option>`
+                    )
+                    .join("")
+                : `<option value="">— Không có lớp nào đang mở —</option>`
+            }
           </select>
         </div>
         <div>
@@ -2017,8 +2070,8 @@ function openCreateSessionModal(myClasses, onDone) {
         <div>
           <label for="sess-date">Ngày học *</label>
           <input id="sess-date" type="date" min="${todayStr()}" value="${todayStr()}" />
-          <p class="muted" style="font-size:12px;margin:0;">
-            Buổi học chỉ có thể diễn ra trong tương lai — không thể tạo buổi học trong quá khứ.
+          <p class="muted" id="sess-schedule-hint" style="font-size:12px;margin:0;">
+            Buổi học phải theo đúng lịch học cố định của lớp và chỉ diễn ra trong tương lai.
           </p>
         </div>
         <div>
@@ -2031,14 +2084,47 @@ function openCreateSessionModal(myClasses, onDone) {
       <button class="btn" data-close>Hủy</button>
       <button class="btn btn-primary" id="btn-save-sess">Tạo buổi học</button>`,
     onMount: (root, close) => {
+      const classSelect = root.querySelector("#sess-class");
+      const dateInput = root.querySelector("#sess-date");
+      const hint = root.querySelector("#sess-schedule-hint");
+
+      // Tự động chọn ngày học hợp lệ kế tiếp theo lịch học cố định của lớp
+      const syncSuggestedDate = () => {
+        const classId = classSelect.value;
+        if (!classId) {
+          dateInput.value = "";
+          hint.textContent = "Chưa chọn lớp học.";
+          return;
+        }
+        const cls = openClasses.find((c) => c.id === classId);
+        const days = getScheduledWeekdays(cls);
+        const nextDates = listUpcomingScheduledDates(classId, todayStr(), 4);
+
+        dateInput.value = getNextSessionDate(classId) || "";
+        hint.innerHTML = days.length
+          ? `Lịch học cố định: <strong>${days.map(weekdayLabel).join(", ")}</strong> — buổi học chỉ được tạo vào các ngày này.` +
+            (nextDates.length
+              ? `<br />Ngày hợp lệ sắp tới: ${nextDates.map((d) => `${formatDate(d)} (${weekdayLabel(weekdayOf(d))})`).join(", ")}`
+              : `<br /><strong>Không còn ngày hợp lệ trong lịch học cố định.</strong>`)
+          : "Lớp học chưa có lịch học cố định trong tuần.";
+      };
+
+      classSelect.addEventListener("change", syncSuggestedDate);
+      syncSuggestedDate();
+
       root.querySelector("#btn-save-sess")?.addEventListener("click", () => {
-        const classId = root.querySelector("#sess-class").value;
+        const classId = classSelect.value;
         const title = root.querySelector("#sess-title").value.trim();
-        const date = root.querySelector("#sess-date").value;
+        const date = dateInput.value;
         const room = root.querySelector("#sess-room").value.trim();
         const err = root.querySelector("#sess-error");
         err.hidden = true;
 
+        if (!classId) {
+          err.textContent = "Vui lòng chọn lớp học đang mở.";
+          err.hidden = false;
+          return;
+        }
         if (!title || !date) {
           err.textContent = "Vui lòng nhập tên buổi học và ngày học.";
           err.hidden = false;
@@ -2063,6 +2149,17 @@ function openCreateSessionModal(myClasses, onDone) {
           return;
         }
 
+        // Buổi học bắt buộc phải theo lịch học cố định đã đăng ký của lớp
+        const allowedDays = getScheduledWeekdays(targetCls);
+        const pickedDay = weekdayOf(date);
+        if (!allowedDays.includes(pickedDay)) {
+          err.textContent =
+            `Ngày ${formatDate(date)} (${weekdayLabel(pickedDay)}) không thuộc lịch học cố định của lớp ` +
+            `(${allowedDays.map(weekdayLabel).join(", ")}).`;
+          err.hidden = false;
+          return;
+        }
+
         try {
           createSession(classId, { title, date, room });
         } catch (e) {
@@ -2078,6 +2175,13 @@ function openCreateSessionModal(myClasses, onDone) {
 }
 
 function openCreateClassModal(teacher, onDone) {
+  const dayOptions = (exclude = null, selected = null) =>
+    WEEKDAYS.map((w) => {
+      const disabled = Number(w.value) === Number(exclude) ? " disabled" : "";
+      const isSelected = selected != null && Number(w.value) === Number(selected) ? " selected" : "";
+      return `<option value="${w.value}"${disabled}${isSelected}>${w.label}</option>`;
+    }).join("");
+
   openModal({
     title: "Đăng ký Mở Lớp học Mới",
     size: "modal-lg",
@@ -2090,25 +2194,58 @@ function openCreateClassModal(teacher, onDone) {
             <input id="new-cls-name" type="text" placeholder="Ví dụ: Toán 9 Nâng cao - K3" />
           </div>
           <div>
-            <label for="new-cls-max">Chỉ tiêu sĩ số tối đa *</label>
-            <input id="new-cls-max" type="number" value="25" min="5" max="50" />
+            <label for="new-cls-max">Sĩ số tối đa</label>
+            <input id="new-cls-max" type="number" value="${MAX_STUDENTS_PER_CLASS}" min="1" max="${MAX_STUDENTS_PER_CLASS}" readonly />
+            <small class="muted" style="display:block;font-size:11px;margin-top:4px;">Quy định: mỗi lớp tối đa ${MAX_STUDENTS_PER_CLASS} học sinh</small>
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div>
+          <label for="new-cls-count">Số buổi học trong tuần *</label>
+          <select id="new-cls-count" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+            ${Array.from({ length: MAX_SESSIONS_PER_WEEK }, (_, i) => i + 1)
+              .map(
+                (n) =>
+                  `<option value="${n}">${n} buổi / tuần</option>`
+              )
+              .join("")}
+          </select>
+          <small class="muted" style="display:block;font-size:11px;margin-top:4px;">
+            Mỗi lớp được học tối đa ${MAX_SESSIONS_PER_WEEK} buổi trong tuần, mỗi buổi một ngày khác nhau.
+          </small>
+        </div>
+
+        <div id="cls-slot-1" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
           <div>
-            <label for="new-cls-day">Ngày học trong tuần *</label>
-            <select id="new-cls-day" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
-              ${WEEKDAYS.map((w) => `<option value="${w.value}">${w.label}</option>`).join("")}
+            <label for="new-cls-day-1">Buổi 1 · Ngày học *</label>
+            <select id="new-cls-day-1" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+              ${dayOptions(null, WEEKDAYS[0].value)}
             </select>
           </div>
           <div>
-            <label for="new-cls-start">Giờ bắt đầu *</label>
-            <input id="new-cls-start" type="time" value="17:30" />
+            <label for="new-cls-start-1">Buổi 1 · Giờ bắt đầu *</label>
+            <input id="new-cls-start-1" type="time" value="17:30" />
           </div>
           <div>
-            <label for="new-cls-end">Giờ kết thúc *</label>
-            <input id="new-cls-end" type="time" value="19:30" />
+            <label for="new-cls-end-1">Buổi 1 · Giờ kết thúc *</label>
+            <input id="new-cls-end-1" type="time" value="19:30" />
+          </div>
+        </div>
+
+        <div id="cls-slot-2" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;display:none;">
+          <div>
+            <label for="new-cls-day-2">Buổi 2 · Ngày học *</label>
+            <select id="new-cls-day-2" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+              ${dayOptions(null, WEEKDAYS[1].value)}
+            </select>
+          </div>
+          <div>
+            <label for="new-cls-start-2">Buổi 2 · Giờ bắt đầu *</label>
+            <input id="new-cls-start-2" type="time" value="19:45" />
+          </div>
+          <div>
+            <label for="new-cls-end-2">Buổi 2 · Giờ kết thúc *</label>
+            <input id="new-cls-end-2" type="time" value="21:00" />
           </div>
         </div>
       </div>
@@ -2117,39 +2254,100 @@ function openCreateClassModal(teacher, onDone) {
       <button class="btn" data-close>Hủy</button>
       <button class="btn btn-primary" id="btn-save-new-cls">Gửi đăng ký mở lớp</button>`,
     onMount: (root, close) => {
+      const countSelect = root.querySelector("#new-cls-count");
+      const slot2 = root.querySelector("#cls-slot-2");
+      const day1 = root.querySelector("#new-cls-day-1");
+      const day2 = root.querySelector("#new-cls-day-2");
+
+      // Hiện/ẩn khung buổi 2 theo số buổi học/tuần được chọn
+      const syncSlotCount = () => {
+        const two = countSelect.value === "2";
+        slot2.style.display = two ? "grid" : "none";
+        if (two) syncDays(day1);
+      };
+
+      // 2 buổi phải khác ngày: chặn chọn trùng ngày ở cả 2 khung
+      const syncDays = (changed) => {
+        const other = changed === day1 ? day2 : day1;
+        const used = changed.value;
+        [...other.options].forEach((opt) => {
+          opt.disabled = Number(opt.value) === Number(used);
+        });
+        if (Number(other.value) === Number(used)) {
+          const free = [...other.options].find((opt) => !opt.disabled);
+          if (free) other.value = free.value;
+        }
+      };
+
+      countSelect.addEventListener("change", syncSlotCount);
+      day1.addEventListener("change", () => syncDays(day1));
+      day2.addEventListener("change", () => syncDays(day2));
+      syncSlotCount();
+
       root.querySelector("#btn-save-new-cls")?.addEventListener("click", () => {
-        const className = root.querySelector("#new-cls-name").value.trim();
-        const maxSlot = parseInt(root.querySelector("#new-cls-max").value, 10);
-        const dayOfWeek = parseInt(
-          root.querySelector("#new-cls-day").value,
-          10,
-        );
-        const start = root.querySelector("#new-cls-start").value;
-        const end = root.querySelector("#new-cls-end").value;
         const err = root.querySelector("#cls-new-error");
         err.hidden = true;
 
-        if (!className || isNaN(maxSlot) || !start || !end) {
-          err.textContent = "Vui lòng nhập đầy đủ thông tin lớp học.";
+        const className = root.querySelector("#new-cls-name").value.trim();
+        const maxSlot = parseInt(root.querySelector("#new-cls-max").value, 10);
+        const count = parseInt(countSelect.value, 10);
+
+        const schedule = [
+          {
+            dayOfWeek: parseInt(day1.value, 10),
+            start: root.querySelector("#new-cls-start-1").value,
+            end: root.querySelector("#new-cls-end-1").value,
+          },
+        ];
+        if (count === 2) {
+          schedule.push({
+            dayOfWeek: parseInt(day2.value, 10),
+            start: root.querySelector("#new-cls-start-2").value,
+            end: root.querySelector("#new-cls-end-2").value,
+          });
+        }
+
+        if (!className) {
+          err.textContent = "Vui lòng nhập tên lớp học.";
+          err.hidden = false;
+          return;
+        }
+        if (isNaN(maxSlot) || maxSlot < 1 || maxSlot > MAX_STUDENTS_PER_CLASS) {
+          err.textContent = `Sĩ số tối đa không được vượt quá ${MAX_STUDENTS_PER_CLASS} học sinh.`;
+          err.hidden = false;
+          return;
+        }
+        if (schedule.some((s) => !s.start || !s.end)) {
+          err.textContent = "Vui lòng nhập đầy đủ giờ bắt đầu và giờ kết thúc cho mỗi buổi học.";
+          err.hidden = false;
+          return;
+        }
+        if (schedule.some((s) => s.start >= s.end)) {
+          err.textContent = "Giờ kết thúc phải sau giờ bắt đầu ở mỗi buổi học.";
+          err.hidden = false;
+          return;
+        }
+        if (count === 2 && schedule[0].dayOfWeek === schedule[1].dayOfWeek) {
+          err.textContent = "2 buổi học trong tuần phải nằm ở 2 ngày khác nhau.";
           err.hidden = false;
           return;
         }
 
-        const newCls = createClass(teacher, {
-          className,
-          maxSlot,
-          schedule: [{ dayOfWeek, start, end }],
-        });
+        try {
+          const newCls = createClass(teacher, { className, maxSlot, schedule });
 
-        // Đặt trạng thái lớp là pending và tạo yêu cầu duyệt cho Admin
-        DB.update("classes", newCls.id, { status: "pending" });
-        DB.insert("class_requests", {
-          type: "register",
-          classId: newCls.id,
-          teacherId: teacher.id,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
+          // Đặt trạng thái lớp là pending và tạo yêu cầu duyệt cho Admin
+          DB.update("classes", newCls.id, { status: "pending" });
+          createClassRequest({
+            type: "register",
+            classId: newCls.id,
+            teacherId: teacher.id,
+          });
+        } catch (e) {
+          err.textContent = e.message;
+          err.hidden = false;
+          return;
+        }
 
         close();
         onDone();
@@ -2159,6 +2357,13 @@ function openCreateClassModal(teacher, onDone) {
 }
 
 function openRescheduleRequestModal(teacher, myClasses, onDone) {
+  const dayOptions = (exclude = null, selected = null) =>
+    WEEKDAYS.map((w) => {
+      const disabled = Number(w.value) === Number(exclude) ? " disabled" : "";
+      const isSelected = selected != null && Number(w.value) === Number(selected) ? " selected" : "";
+      return `<option value="${w.value}"${disabled}${isSelected}>${w.label}</option>`;
+    }).join("");
+
   openModal({
     title: "Yêu cầu Đổi Lịch học (Gửi Admin)",
     size: "modal-lg",
@@ -2171,20 +2376,44 @@ function openRescheduleRequestModal(teacher, myClasses, onDone) {
             ${myClasses.map((c) => `<option value="${c.id}">${escapeHtml(c.className)} · Hiện tại: ${formatSchedule(c.schedule)}</option>`).join("")}
           </select>
         </div>
+        <div>
+          <label for="resched-count">Số buổi học trong tuần *</label>
+          <select id="resched-count" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+            ${Array.from({ length: MAX_SESSIONS_PER_WEEK }, (_, i) => i + 1)
+              .map((n) => `<option value="${n}">${n} buổi / tuần</option>`)
+              .join("")}
+          </select>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
           <div>
-            <label for="resched-day">Ngày học mới muốn đổi sang *</label>
-            <select id="resched-day" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
-              ${WEEKDAYS.map((w) => `<option value="${w.value}">${w.label}</option>`).join("")}
+            <label for="resched-day-1">Buổi 1 · Ngày học mới *</label>
+            <select id="resched-day-1" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+              ${dayOptions(null, WEEKDAYS[0].value)}
             </select>
           </div>
           <div>
-            <label for="resched-start">Giờ bắt đầu mới *</label>
-            <input id="resched-start" type="time" value="18:00" />
+            <label for="resched-start-1">Buổi 1 · Giờ bắt đầu *</label>
+            <input id="resched-start-1" type="time" value="18:00" />
           </div>
           <div>
-            <label for="resched-end">Giờ kết thúc mới *</label>
-            <input id="resched-end" type="time" value="20:00" />
+            <label for="resched-end-1">Buổi 1 · Giờ kết thúc *</label>
+            <input id="resched-end-1" type="time" value="20:00" />
+          </div>
+        </div>
+        <div id="resched-slot-2" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;display:none;">
+          <div>
+            <label for="resched-day-2">Buổi 2 · Ngày học mới *</label>
+            <select id="resched-day-2" style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--field);">
+              ${dayOptions(null, WEEKDAYS[1].value)}
+            </select>
+          </div>
+          <div>
+            <label for="resched-start-2">Buổi 2 · Giờ bắt đầu *</label>
+            <input id="resched-start-2" type="time" value="18:00" />
+          </div>
+          <div>
+            <label for="resched-end-2">Buổi 2 · Giờ kết thúc *</label>
+            <input id="resched-end-2" type="time" value="20:00" />
           </div>
         </div>
       </div>
@@ -2193,16 +2422,51 @@ function openRescheduleRequestModal(teacher, myClasses, onDone) {
       <button class="btn" data-close>Hủy</button>
       <button class="btn btn-primary" id="btn-save-resched">Gửi yêu cầu tới Admin</button>`,
     onMount: (root, close) => {
+      const countSelect = root.querySelector("#resched-count");
+      const slot2 = root.querySelector("#resched-slot-2");
+      const day1 = root.querySelector("#resched-day-1");
+      const day2 = root.querySelector("#resched-day-2");
+
+      const syncSlotCount = () => {
+        const two = countSelect.value === "2";
+        slot2.style.display = two ? "grid" : "none";
+        if (two) syncDays(day1);
+      };
+      const syncDays = (changed) => {
+        const other = changed === day1 ? day2 : day1;
+        [...other.options].forEach((opt) => {
+          opt.disabled = Number(opt.value) === Number(changed.value);
+        });
+        if (Number(other.value) === Number(changed.value)) {
+          const free = [...other.options].find((opt) => !opt.disabled);
+          if (free) other.value = free.value;
+        }
+      };
+      countSelect.addEventListener("change", syncSlotCount);
+      day1.addEventListener("change", () => syncDays(day1));
+      day2.addEventListener("change", () => syncDays(day2));
+      syncSlotCount();
+
       root.querySelector("#btn-save-resched").addEventListener("click", () => {
         const classId = root.querySelector("#resched-cls").value;
-        const dayOfWeek = parseInt(
-          root.querySelector("#resched-day").value,
-          10,
-        );
-        const start = root.querySelector("#resched-start").value;
-        const end = root.querySelector("#resched-end").value;
+        const count = parseInt(countSelect.value, 10);
         const err = root.querySelector("#resched-error");
         err.hidden = true;
+
+        const newSchedule = [
+          {
+            dayOfWeek: parseInt(day1.value, 10),
+            start: root.querySelector("#resched-start-1").value,
+            end: root.querySelector("#resched-end-1").value,
+          },
+        ];
+        if (count === 2) {
+          newSchedule.push({
+            dayOfWeek: parseInt(day2.value, 10),
+            start: root.querySelector("#resched-start-2").value,
+            end: root.querySelector("#resched-end-2").value,
+          });
+        }
 
         const cls = getClassById(classId);
         if (!cls) return;
@@ -2212,15 +2476,19 @@ function openRescheduleRequestModal(teacher, myClasses, onDone) {
           return;
         }
 
-        DB.insert("class_requests", {
-          type: "reschedule",
-          classId: cls.id,
-          teacherId: teacher.id,
-          oldSchedule: cls.schedule,
-          newSchedule: [{ dayOfWeek, start, end }],
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
+        try {
+          createClassRequest({
+            type: "reschedule",
+            classId: cls.id,
+            teacherId: teacher.id,
+            oldSchedule: cls.schedule,
+            newSchedule,
+          });
+        } catch (e) {
+          err.textContent = e.message;
+          err.hidden = false;
+          return;
+        }
 
         close();
         onDone();

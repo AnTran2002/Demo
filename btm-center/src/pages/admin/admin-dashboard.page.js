@@ -9,7 +9,6 @@ import {
   updateUserCredentials,
 } from "../../modules/users/users.service.js";
 import {
-  setClassStatus,
   listStudentsOfClass,
 } from "../../modules/classes/classes.service.js";
 import {
@@ -41,7 +40,17 @@ const REQ_TYPE_LABELS = {
   register: "Đăng ký lớp mới",
   reschedule: "Yêu cầu đổi lịch học",
   reopen: "Yêu cầu mở lại lớp học",
+  close: "Yêu cầu đóng lớp học",
 };
+
+// Màu nền + icon cho từng loại yêu cầu của giáo viên
+const REQ_TYPE_STYLE = {
+  register: { bg: "#e6f8f0;color:#0d8a5f", icon: "plus" },
+  reschedule: { bg: "#fef3c7;color:#b45309", icon: "refresh" },
+  reopen: { bg: "#e8f0fe;color:#1d4ed8", icon: "refresh" },
+  close: { bg: "#fdecec;color:#c0392b", icon: "close" },
+};
+const reqTypeStyle = (type) => REQ_TYPE_STYLE[type] || REQ_TYPE_STYLE.reschedule;
 
 const REQ_STATUS_LABELS = {
   pending: "Chờ phê duyệt",
@@ -476,10 +485,8 @@ function renderAdminOverviewPage(el) {
                       (r) => `
                         <div class="row-item notif-item" data-request-id="${r.id}" style="border:1px solid var(--line);border-radius:12px;padding:12px 18px;">
                           <div style="display:flex;align-items:center;gap:14px;min-width:0;">
-                            <div style="width:40px;height:40px;border-radius:10px;display:grid;place-items:center;flex:none;background:${
-                              r.type === "register" ? "#e6f8f0;color:#0d8a5f" : "#fef3c7;color:#b45309"
-                            };">
-                              ${r.type === "register" ? ICONS.plus : ICONS.refresh}
+                            <div style="width:40px;height:40px;border-radius:10px;display:grid;place-items:center;flex:none;background:${reqTypeStyle(r.type).bg};">
+                              ${ICONS[reqTypeStyle(r.type).icon]}
                             </div>
                             <div style="min-width:0;">
                               <strong class="row-title" style="display:block;font-size:14.5px;">
@@ -953,13 +960,6 @@ function setupClassesSection(el, allClasses) {
                   <td>${statusBadge(c.status)}</td>
                   <td class="actions">
                     <div class="actions-grid">
-                      ${
-                        c.status === "open"
-                          ? `<button class="btn btn-sm btn-warn" data-cls-toggle-status="${c.id}" data-action="close">Đóng lớp</button>`
-                          : c.status === "closed"
-                          ? `<span class="muted" style="font-size:12px;">Chờ yêu cầu mở lại từ GV</span>`
-                          : ""
-                      }
                       <button class="btn btn-sm btn-primary" data-cls-view="${c.id}">
                         Xem chi tiết
                       </button>
@@ -975,19 +975,6 @@ function setupClassesSection(el, allClasses) {
       btn.addEventListener("click", () => {
         const cls = allClasses.find((c) => c.id === btn.dataset.clsView);
         if (cls) openClassDetailModal(cls);
-      });
-    });
-
-    container.querySelectorAll("[data-cls-toggle-status]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const cls = allClasses.find((c) => c.id === btn.dataset.clsToggleStatus);
-        if (!cls) return;
-        const willClose = btn.dataset.action === "close";
-        openToggleClassModal(cls, willClose, () => {
-          cls.status = willClose ? "closed" : "open";
-          renderCompactTable();
-          flash(el, `Đã ${willClose ? "đóng" : "mở lại"} lớp ${cls.className}.`);
-        });
       });
     });
   }
@@ -1340,9 +1327,9 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
             const req = requests.find((r) => r.id === btn.dataset.modalReq);
             if (req) {
               close();
-              openRequestDetail(req, (msg) => {
+              openRequestDetail(req, (msg, type) => {
                 renderAdminOverviewPage(el);
-                flash(el, msg);
+                flash(el, msg, type);
               });
             }
           })
@@ -1435,9 +1422,9 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
       e.stopPropagation();
       const req = requests.find((r) => r.id === btn.dataset.openReq);
       if (req) {
-        openRequestDetail(req, (msg) => {
+        openRequestDetail(req, (msg, type) => {
           renderAdminOverviewPage(el);
-          flash(el, msg);
+          flash(el, msg, type);
         });
       }
     })
@@ -1447,40 +1434,46 @@ function setupDetailButtons(el, { overview, allUsers, allClasses, requests, subj
     row.addEventListener("click", () => {
       const req = requests.find((r) => r.id === row.dataset.requestId);
       if (req) {
-        openRequestDetail(req, (msg) => {
+        openRequestDetail(req, (msg, type) => {
           renderAdminOverviewPage(el);
-          flash(el, msg);
+          flash(el, msg, type);
         });
       }
     })
   );
 
-  // Phê duyệt / từ chối ngay tại chỗ từ danh sách thông báo (không cần vào modal chi tiết)
+  // Phê duyệt / từ chối ngay tại chỗ từ danh sách thông báo (không cần vào modal chi tiết).
+  // stopPropagation để không kích hoạt handler mở modal chi tiết của cả dòng.
   el.querySelectorAll("[data-req-approve]").forEach((btn) =>
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const req = requests.find((r) => r.id === btn.dataset.reqApprove);
       try {
         approveClassRequest(btn.dataset.reqApprove);
         renderAdminOverviewPage(el);
-        flash(el, "Đã phê duyệt yêu cầu của giáo viên.");
-      } catch (e) {
-        flash(el, e.message, "error");
+        flash(el, req?.type === "close" ? "Đã phê duyệt — lớp học đã được đóng." : "Đã phê duyệt yêu cầu của giáo viên.");
+      } catch (err) {
+        flash(el, err.message, "error");
       }
     })
   );
 
   el.querySelectorAll("[data-req-reject]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const reason = prompt("Nhập lý do từ chối (bỏ trống nếu không có):") || "";
-      try {
-        rejectClassRequest(btn.dataset.reqReject);
-        renderAdminOverviewPage(el);
-        flash(
-          el,
-          "Đã từ chối yêu cầu của giáo viên." + (reason ? ` Lý do: ${reason}` : "")
-        );
-      } catch (e) {
-        flash(el, e.message, "error");
-      }
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const req = requests.find((r) => r.id === btn.dataset.reqReject);
+      openRejectRequestModal(req, (reason) => {
+        try {
+          rejectClassRequest(btn.dataset.reqReject, reason);
+          renderAdminOverviewPage(el);
+          flash(
+            el,
+            "Đã từ chối yêu cầu của giáo viên." + (reason ? ` Lý do: ${reason}` : "")
+          );
+        } catch (err) {
+          flash(el, err.message, "error");
+        }
+      });
     })
   );
 }
@@ -1702,40 +1695,6 @@ function openClassDetailModal(cls) {
 }
 
 // =============================================================================
-// MODAL ĐÓNG / MỞ LẠI LỚP HỌC
-// =============================================================================
-function openToggleClassModal(cls, willClose, onDone) {
-  openModal({
-    title: willClose ? "Xác nhận đóng lớp học" : "Xác nhận mở lại lớp học",
-    body: `
-      ${infoRow("Lớp học", escapeHtml(cls.className))}
-      ${infoRow("Môn học", subjectLabel(cls.subject))}
-      ${infoRow("Giáo viên", escapeHtml(cls.teacherName))}
-      ${infoRow("Sĩ số", `${cls.enrolled}/${cls.maxSlot}`)}
-      ${infoRow("Lịch học", formatSchedule(cls.schedule))}
-      <p class="muted" style="margin-top:12px;">
-        ${
-          willClose
-            ? "Lớp sẽ ngừng hoạt động và không còn hiển thị để học sinh đăng ký mới."
-            : "Lớp sẽ hoạt động trở lại bình thường và cho phép học sinh tham gia học tập."
-        }
-      </p>`,
-    foot: `
-      <button class="btn" data-close>Hủy</button>
-      <button class="btn ${willClose ? "btn-warn" : "btn-primary"}" id="confirm-toggle-cls">
-        ${willClose ? "Đóng lớp học" : "Mở lại lớp"}
-      </button>`,
-    onMount: (root, close) => {
-      root.querySelector("#confirm-toggle-cls").addEventListener("click", () => {
-        setClassStatus(cls.id, willClose ? "closed" : "open");
-        close();
-        onDone();
-      });
-    },
-  });
-}
-
-// =============================================================================
 // MODAL TẠO TÀI KHOẢN MỚI CHO ADMIN (GIÁO VIÊN / HỌC SINH / PHỤ HUYNH)
 // =============================================================================
 function openCreateUserModal(onCreated) {
@@ -1899,36 +1858,106 @@ function openEditAccountModal(user, onSaved) {
 }
 
 // =============================================================================
+// MODAL NHẬP LÝ DO TỪ CHỐI YÊU CẦU (thay cho prompt() của trình duyệt)
+// =============================================================================
+function openRejectRequestModal(req, onRejected) {
+  const clsName = escapeHtml(req?.cls?.className || "");
+  openModal({
+    title: "Từ chối yêu cầu của giáo viên",
+    body: `
+      <div class="modal-form">
+        ${
+          req
+            ? `${infoRow("Loại yêu cầu", REQ_TYPE_LABELS[req.type] || "Yêu cầu")}
+               ${infoRow("Lớp học", clsName)}
+               ${infoRow("Giáo viên gửi yêu cầu", escapeHtml(req.teacher?.fullName || "—"))}`
+            : ""
+        }
+        <div>
+          <label for="req-reject-reason">Lý do từ chối (không bắt buộc)</label>
+          <textarea id="req-reject-reason" rows="3" placeholder="Nhập lý do để giáo viên nắm được thông tin"></textarea>
+        </div>
+      </div>`,
+    foot: `
+      <button class="btn" data-close>Hủy</button>
+      <button class="btn btn-danger" id="req-reject-confirm">Từ chối yêu cầu</button>`,
+    onMount: (root, close) => {
+      root.querySelector("#req-reject-confirm").addEventListener("click", () => {
+        const reason = root.querySelector("#req-reject-reason").value.trim();
+        close();
+        onRejected(reason);
+      });
+    },
+  });
+}
+
+// =============================================================================
 // MODAL CHI TIẾT & PHÊ DUYỆT YÊU CẦU TỪ GIÁO VIÊN
 // =============================================================================
 function openRequestDetail(req, onDone) {
   const isRegister = req.type === "register";
+  const isReschedule = req.type === "reschedule";
+  const isReopen = req.type === "reopen";
+  const isClose = req.type === "close";
+
   const statusRow = infoRow(
     "Trạng thái hiện tại",
     `<span class="badge ${REQ_STATUS_BADGES[req.status]}">${REQ_STATUS_LABELS[req.status]}</span>`
   );
 
+  // Nội dung riêng cho từng loại yêu cầu
+  const typeBlock = isRegister
+    ? `${infoRow("Thời gian học", dayLabels(req.cls.schedule))}
+       ${infoRow("Khung giờ học", timeLabels(req.cls.schedule))}`
+    : isReschedule
+      ? `<div class="modal-compare" style="margin:12px 0;">
+          <div class="cmp-box">
+            <span class="cmp-label">Lịch học cũ</span>
+            <div class="cmp-line">${dayLabels(req.oldSchedule)}</div>
+            <div class="cmp-sub">${timeLabels(req.oldSchedule)}</div>
+          </div>
+          <div class="cmp-box new">
+            <span class="cmp-label">Lịch học muốn đổi sang</span>
+            <div class="cmp-line">${dayLabels(req.newSchedule)}</div>
+            <div class="cmp-sub">${timeLabels(req.newSchedule)}</div>
+          </div>
+        </div>`
+      : isClose
+        ? `${infoRow("Thời gian học", dayLabels(req.cls.schedule))}
+           ${infoRow("Khung giờ học", timeLabels(req.cls.schedule))}
+           <p class="muted" style="margin-top:12px;">
+             Phê duyệt yêu cầu này sẽ <strong>đóng lớp học</strong>: lớp ngừng hoạt động,
+             không còn hiển thị để học sinh đăng ký mới và không thao tác điểm danh / nhập điểm được nữa.
+           </p>`
+        : isReopen
+          ? `${infoRow("Thời gian học", dayLabels(req.cls.schedule))}
+             ${infoRow("Khung giờ học", timeLabels(req.cls.schedule))}
+             <p class="muted" style="margin-top:12px;">
+               Phê duyệt yêu cầu này sẽ <strong>mở lại lớp học</strong> để học sinh đăng ký tham gia.
+             </p>`
+          : "";
+
+  const title = isRegister
+    ? "Chi tiết Yêu cầu Đăng ký Lớp mới"
+    : isReschedule
+      ? "Chi tiết Yêu cầu Đổi Lịch học"
+      : isClose
+        ? "Chi tiết Yêu cầu Đóng Lớp học"
+        : "Chi tiết Yêu cầu Mở lại Lớp học";
+
+  const approveMessage = isRegister
+    ? "Đã phê duyệt — lớp học đã được mở hoạt động."
+    : isReschedule
+      ? "Đã phê duyệt — lịch học của lớp đã được cập nhật thành công."
+      : isClose
+        ? "Đã phê duyệt — lớp học đã được đóng."
+        : "Đã phê duyệt — lớp học đã được mở lại.";
+
   const body = `
     ${infoRow("Lớp học", escapeHtml(req.cls.className))}
     ${infoRow("Môn học", subjectLabel(req.cls.subject))}
     ${infoRow("Giáo viên gửi yêu cầu", escapeHtml(req.teacher?.fullName || "—"))}
-    ${
-      isRegister
-        ? `${infoRow("Thời gian học", dayLabels(req.cls.schedule))}
-           ${infoRow("Khung giờ học", timeLabels(req.cls.schedule))}`
-        : `<div class="modal-compare" style="margin:12px 0;">
-            <div class="cmp-box">
-              <span class="cmp-label">Lịch học cũ</span>
-              <div class="cmp-line">${dayLabels(req.oldSchedule)}</div>
-              <div class="cmp-sub">${timeLabels(req.oldSchedule)}</div>
-            </div>
-            <div class="cmp-box new">
-              <span class="cmp-label">Lịch học muốn đổi sang</span>
-              <div class="cmp-line">${dayLabels(req.newSchedule)}</div>
-              <div class="cmp-sub">${timeLabels(req.newSchedule)}</div>
-            </div>
-          </div>`
-    }
+    ${typeBlock}
     ${statusRow}
     <p class="form-error" id="req-error" role="alert" hidden></p>`;
 
@@ -1941,7 +1970,7 @@ function openRequestDetail(req, onDone) {
       : `<button class="btn" data-close>Đóng</button>`;
 
   openModal({
-    title: isRegister ? "Chi tiết Yêu cầu Đăng ký Lớp mới" : "Chi tiết Yêu cầu Đổi Lịch học",
+    title,
     body,
     foot,
     onMount: (root, close) => {
@@ -1960,17 +1989,23 @@ function openRequestDetail(req, onDone) {
       };
 
       root.querySelector("#req-approve")?.addEventListener("click", () =>
-        decide(
-          approveClassRequest,
-          isRegister
-            ? "Đã phê duyệt — lớp học đã được mở hoạt động."
-            : "Đã phê duyệt — lịch học của lớp đã được cập nhật thành công."
-        )
+        decide(approveClassRequest, approveMessage)
       );
 
-      root.querySelector("#req-reject")?.addEventListener("click", () =>
-        decide(rejectClassRequest, "Đã từ chối yêu cầu của giáo viên.")
-      );
+      root.querySelector("#req-reject")?.addEventListener("click", () => {
+        err.hidden = true;
+        close();
+        openRejectRequestModal(req, (reason) => {
+          try {
+            rejectClassRequest(req.id, reason);
+            onDone(
+              "Đã từ chối yêu cầu của giáo viên." + (reason ? ` Lý do: ${reason}` : "")
+            );
+          } catch (e) {
+            onDone(e.message, "error");
+          }
+        });
+      });
     },
   });
 }

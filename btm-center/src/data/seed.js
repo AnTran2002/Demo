@@ -343,7 +343,18 @@ const DEFAULT_CLASS_REQUESTS = [
     status: "pending",
     createdAt: daysFromNow(0),
   },
+  {
+    id: "cr-3",
+    type: "close",
+    classId: "c-anh-9a",
+    teacherId: "t-anh",
+    status: "pending",
+    createdAt: daysFromNow(0),
+  },
 ];
+
+// Yêu cầu đóng lớp mẫu: dùng để minh hoạ luồng GV yêu cầu → Admin phê duyệt.
+const DEMO_CLOSE_REQUEST = DEFAULT_CLASS_REQUESTS.find((r) => r.id === "cr-3");
 
 function ensureEntity(entity, seedData) {
   if (DB.getAll(entity).length === 0) DB.saveAll(entity, seedData);
@@ -524,9 +535,18 @@ export function seedDatabase() {
     DB.saveAll("classes", [...DB.getAll("classes"), DEMO_PENDING_CLASS]);
   }
 
-  if (DB.getAll("class_requests").length === 0) {
+  const existingRequests = DB.getAll("class_requests");
+  if (existingRequests.length === 0) {
     const classIds = new Set(DB.getAll("classes").map((c) => c.id));
     const demoRequests = DEFAULT_CLASS_REQUESTS.filter((r) => classIds.has(r.classId));
     if (demoRequests.length) DB.saveAll("class_requests", demoRequests);
+  } else if (
+    DEMO_CLOSE_REQUEST &&
+    !existingRequests.some((r) => r.id === DEMO_CLOSE_REQUEST.id) &&
+    DB.getAll("classes").some((c) => c.id === DEMO_CLOSE_REQUEST.classId)
+  ) {
+    // Bổ sung yêu cầu đóng lớp mẫu (chỉ thêm 1 lần) để có sẵn luồng
+    // "Giáo viên yêu cầu đóng lớp → Admin phê duyệt" trong bản demo.
+    DB.saveAll("class_requests", [...existingRequests, DEMO_CLOSE_REQUEST]);
   }
 }

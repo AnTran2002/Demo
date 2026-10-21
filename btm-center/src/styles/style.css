@@ -3146,6 +3146,15 @@ td.actions { white-space: nowrap; }
 .actions-grid:has(> .btn:nth-child(2)):not(:has(> .btn:nth-child(3))) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+/* O thao tac chi co 1 nut: nut bam sat noi dung, canh phai */
+.actions-grid:has(> .btn:only-child) {
+  grid-template-columns: max-content;
+  justify-content: end;
+}
+/* 5 nut thao tac (bang lop cua giao vien): giu cung 1 hang, khong cat chu */
+.actions-grid:has(> .btn:nth-child(5)) {
+  grid-template-columns: repeat(5, max-content);
+}
 .actions-grid .btn,
 .actions-grid button {
   width: 100%;

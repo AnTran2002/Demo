@@ -166,10 +166,12 @@ src/
 
 **M3 – Quản lý lớp học**
 
-- Tạo lớp: tên lớp, lịch cố định (thứ + giờ bắt đầu/kết thúc), sĩ số tối đa
+- Tạo lớp: tên lớp, số buổi học trong tuần (1 hoặc 2 buổi), mỗi buổi có lịch cố định (thứ + giờ bắt đầu/kết thúc)
 - **Môn học tự động = môn đã đăng ký của giáo viên** (không cho chọn tự do)
 - 1 giáo viên có thể mở nhiều lớp, nhưng cùng 1 môn
-- Sửa/đóng lớp, xem danh sách học sinh trong lớp
+- **Sĩ số tối đa 20 học sinh/lớp** (quy định cứng của hệ thống)
+- Sửa lớp, xem danh sách học sinh trong lớp
+- **Đóng lớp phải qua yêu cầu**: giáo viên gửi yêu cầu đóng lớp → Admin phê duyệt thì lớp mới đóng (Admin không tự ý đóng lớp)
 
 **M4 – Đăng ký học**
 
@@ -179,7 +181,7 @@ src/
 
 **M5 – Buổi học**
 
-- Tạo buổi học theo ngày cụ thể (thủ công)
+- Tạo buổi học theo ngày cụ thể (thủ công), **bắt buộc theo lịch học cố định của lớp** (lớp học Thứ 2 – Thứ 6 thì buổi học chỉ tạo được vào Thứ 2 hoặc Thứ 6). Form tự động chọn ngày hợp lệ kế tiếp theo lịch lớp
 - Nhập tiêu đề bài học cho buổi
 - Điểm danh: Có mặt / Vắng / Trễ theo từng học sinh
 

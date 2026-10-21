@@ -1,5 +1,6 @@
 // modules/enrollment/enrollment.service.js — Phụ trách: Thành viên C
 import { DB } from "../../core/db.js";
+import { getClassCapacity } from "../classes/classes.service.js";
 
 export function enroll(studentId, classId) {
   const cls = DB.findById("classes", classId);
@@ -14,8 +15,10 @@ export function enroll(studentId, classId) {
   const enrollments = DB.getAll("enrollments").filter(
     (e) => e.classId === classId && e.status === "active"
   );
-  if (enrollments.length >= cls.maxSlot) {
-    throw new Error("Lớp đã đủ sĩ số");
+  // Sĩ số tối đa luôn được chặn trần 20 học sinh/lớp
+  const capacity = getClassCapacity(cls);
+  if (enrollments.length >= capacity) {
+    throw new Error(`Lớp đã đủ sĩ số (tối đa ${capacity} học sinh)`);
   }
 
   return DB.insert("enrollments", {
