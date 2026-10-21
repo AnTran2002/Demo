@@ -165,7 +165,7 @@ Học sinh
    grades: { id, classId, studentId, type, score, note }
    comments: { id, classId, studentId, teacherId, content, createdAt }
 
-Mỗi entity lưu tại 1 key riêng trong LocalStorage; mọi thao tác đi qua lớp trừu tượng db.js dùng chung (get/save/insert/update/delete).
+Mỗi entity lưu tại 1 key riêng trong LocalStorage; mọi thao tác đi qua lớp trừu tượng db.js dùng chung (get/save/insert/update).
 
 6. USE CASE CHÍNH (tóm tắt)
    Mã

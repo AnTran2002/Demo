@@ -515,15 +515,17 @@ function renderStudentOverviewPage(el, student) {
                             <td>${escapeHtml(c.teacherName || "—")}</td>
                             <td class="muted">${formatSchedule(c.schedule)}</td>
                             <td><strong style="color:var(--brand-dark);">${gr ? gr.avg : "—"}</strong></td>
-                            <td class="actions" style="text-align:right;">
-                              <button class="btn btn-sm btn-primary" data-st-cls-detail="${c.id}" style="width:auto;padding:5px 12px;">
-                                Chi tiết môn học
-                              </button>
-                              ${
-                                hasPending
-                                  ? `<span class="badge late">Chờ PH duyệt hủy</span>`
-                                  : `<button class="btn btn-sm btn-danger" data-st-cancel-cls="${c.id}">Hủy môn</button>`
-                              }
+                            <td class="actions">
+                              <div class="actions-grid">
+                                <button class="btn btn-sm btn-primary" data-st-cls-detail="${c.id}" style="width:auto;padding:5px 12px;">
+                                  Chi tiết môn học
+                                </button>
+                                ${
+                                  hasPending
+                                    ? `<span class="badge late">Chờ PH duyệt hủy</span>`
+                                    : `<button class="btn btn-sm btn-danger" data-st-cancel-cls="${c.id}">Hủy môn</button>`
+                                }
+                              </div>
                             </td>
                           </tr>`;
                       })
@@ -695,16 +697,18 @@ function renderStudentOverviewPage(el, student) {
                         </span>
                       </td>
                       <td class="muted">${formatSchedule(c.schedule)}</td>
-                      <td class="actions" style="text-align:right;">
-                        ${
-                          c.isEnrolled
-                            ? `<span class="badge active">Đang theo học</span>`
-                            : c.enrolled >= c.maxSlot
-                            ? `<span class="badge closed">Hết chỗ</span>`
-                            : `<button class="btn btn-sm btn-primary" data-st-enroll="${c.id}" style="width:auto;padding:5px 14px;">
-                                Đăng ký ngay
-                              </button>`
-                        }
+                      <td class="actions">
+                        <div class="actions-grid">
+                          ${
+                            c.isEnrolled
+                              ? `<span class="badge active">Đang theo học</span>`
+                              : c.enrolled >= c.maxSlot
+                                ? `<span class="badge closed">Hết chỗ</span>`
+                                : `<button class="btn btn-sm btn-primary" data-st-enroll="${c.id}" style="width:auto;padding:5px 14px;">
+                                    Đăng ký ngay
+                                  </button>`
+                          }
+                        </div>
                       </td>
                     </tr>`
                 )

@@ -35,37 +35,3 @@ export function updateUserCredentials(userId, { email, password }) {
 
   return DB.update("users", userId, patch);
 }
-
-export function deleteUser(userId) {
-  const user = DB.findById("users", userId);
-  if (!user) throw new Error("Tài khoản không tồn tại");
-  if (user.role === "admin") throw new Error("Không thể xóa tài khoản quản trị viên");
-
-  DB.remove("users", userId);
-
-  ["enrollments", "attendance", "grades", "comments", "cancel_requests", "class_requests"].forEach(
-    (entity) => {
-      const rows = DB.getAll(entity);
-      const kept = rows.filter((r) => r.studentId !== userId && r.teacherId !== userId);
-      if (kept.length !== rows.length) DB.saveAll(entity, kept);
-    }
-  );
-
-  const classes = DB.getAll("classes");
-  if (classes.some((c) => c.teacherId === userId)) {
-    DB.saveAll(
-      "classes",
-      classes.map((c) => (c.teacherId === userId ? { ...c, teacherId: null } : c))
-    );
-  }
-
-  const users = DB.getAll("users");
-  if (users.some((u) => u.studentId === userId)) {
-    DB.saveAll(
-      "users",
-      users.map((u) => (u.studentId === userId ? { ...u, studentId: null } : u))
-    );
-  }
-
-  return true;
-}

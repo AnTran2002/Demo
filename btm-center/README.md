@@ -12,7 +12,7 @@ npm run build     # build production
 ```
 src/
 ├── core/                  # Hạ tầng dùng chung — KHÔNG ai được sửa tuỳ tiện, bàn bạc trước khi đổi
-│   ├── db.js              # Lớp trừu tượng LocalStorage (get/save/insert/update/remove)
+│   ├── db.js              # Lớp trừu tượng LocalStorage (get/save/insert/update)
 │   ├── router.js          # Router SPA dựa trên hash
 │   └── session.js         # Quản lý phiên đăng nhập hiện tại
 │
@@ -247,7 +247,7 @@ comments: [
 ```
 
 - Mỗi entity = 1 key LocalStorage riêng
-- Toàn bộ thao tác qua lớp trừu tượng `db.js` dùng chung (get/save/insert/update/delete) để 4 người code song song không xung đột
+- Toàn bộ thao tác qua lớp trừu tượng `db.js` dùng chung (get/save/insert/update) để 4 người code song song không xung đột
 
 ---
 

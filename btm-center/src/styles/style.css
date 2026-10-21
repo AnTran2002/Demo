@@ -665,7 +665,11 @@ th {
   background: #faf9ff;
 }
 
-tbody tr:last-child td { border-bottom: none; }
+/* Duong ke ngang dat tren <tr>: luon thang va lien mach qua moi cot,
+   khong phu thuoc do cao khac nhau cua tung o trong dong */
+tbody td { border-bottom: none; }
+tbody tr { border-bottom: 1px solid var(--line); }
+tbody tr:last-child { border-bottom: none; }
 tbody tr:hover td { background: #faf9ff; }
 td.actions { text-align: right; }
 
@@ -917,9 +921,9 @@ section {
 
 .right { text-align: right; }
 
-td.actions { white-space: nowrap; }
-td.actions .btn { margin-left: 6px; }
-td.actions .btn:first-child { margin-left: 0; }
+/* O thao tac giu nguyen display: table-cell de duong ke ngang canh deu.
+   Grid duoi day nam trong wrapper .actions-grid. */
+td.actions { white-space: nowrap; vertical-align: middle; }
 
 /* �?u trang chi ti?t */
 .detail-head {
@@ -3098,7 +3102,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; table-layout: auto; }
 th, td { vertical-align: top; padding: 10px 12px; line-height: 1.35; white-space: normal; word-break: break-word; }
-td.actions, .actions { white-space: nowrap; }
+td.actions { white-space: nowrap; }
 .badge { line-height: 1.2; }
 .btn, button { white-space: nowrap; }
 .modal { width: min(92vw, 640px); }
@@ -3122,24 +3126,31 @@ td.actions, .actions { white-space: nowrap; }
 }
 .overview-dashboard { display: flex; flex-direction: column; gap: 22px; }
 
-/* Dong bo nut thao tac trong bang */
-.actions {
-  display: grid !important;
+/* Dong bo nut thao tac trong bang.
+   Luu y: grid dat tren wrapper .actions-grid (ben trong <td>), khong dat truc tiep
+   len <td> - neu dat display:grid len <td> thi o do se khong con la table-cell
+   nham va duong ke ngang cua o do se lech so voi cac o con lai trong cung dong. */
+.actions-grid {
+  display: grid;
   gap: 8px;
   align-items: stretch;
   justify-items: stretch;
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
 }
-.actions:has(> .btn:nth-child(4)) {
+.actions-grid:has(> .btn:nth-child(4)) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-.actions:has(> .btn:nth-child(2)):not(:has(> .btn:nth-child(3))) {
+.actions-grid:has(> .btn:nth-child(3)):not(:has(> .btn:nth-child(4))) {
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+}
+.actions-grid:has(> .btn:nth-child(2)):not(:has(> .btn:nth-child(3))) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.actions .btn,
-.actions button {
+.actions-grid .btn,
+.actions-grid button {
   width: 100%;
   min-width: 0;
+  margin-left: 0;
   padding-inline: 8px !important;
   text-align: center;
   justify-content: center;
@@ -3147,7 +3158,7 @@ td.actions, .actions { white-space: nowrap; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.actions span {
+.actions-grid span {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3157,5 +3168,17 @@ td.actions, .actions { white-space: nowrap; }
   word-break: break-word;
   line-height: 1.2;
 
+}
+
+/* Bang quan ly tai khoan: 3 nut (Chi tiết / Khoa / Sua) luon cung 1 hang,
+   deu nhau ve do rong, canh giua theo hang va nhan khong bi cat */
+.actions-grid.actions-3 {
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  align-items: center;
+}
+.actions-grid.actions-3 .btn {
+  padding-block: 7px !important;
+  min-height: 30px;
+  line-height: 1.2;
 }
 

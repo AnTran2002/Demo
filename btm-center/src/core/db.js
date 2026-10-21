@@ -31,11 +31,6 @@ function update(entity, id, patch) {
   return list[idx];
 }
 
-function remove(entity, id) {
-  const list = getAll(entity).filter((x) => x.id !== id);
-  saveAll(entity, list);
-}
-
 function findById(entity, id) {
   return getAll(entity).find((x) => x.id === id) || null;
 }
@@ -45,4 +40,4 @@ function seedIfEmpty(entity, seedData) {
   if (!existing) saveAll(entity, seedData);
 }
 
-export const DB = { getAll, saveAll, insert, update, remove, findById, seedIfEmpty };
+export const DB = { getAll, saveAll, insert, update, findById, seedIfEmpty };

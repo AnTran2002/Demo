@@ -7,7 +7,6 @@ import {
 import {
   toggleActive,
   updateUserCredentials,
-  deleteUser,
 } from "../../modules/users/users.service.js";
 import {
   setClassStatus,
@@ -724,7 +723,7 @@ function renderAdminOverviewPage(el) {
 }
 
 // =============================================================================
-// QUẢN LÝ BẢNG TÀI KHOẢN (TÌM KIẾM, LỌC, XEM CHI TIẾT TỪNG DÒNG, SỬA, XÓA, KHÓA)
+// QUẢN LÝ BẢNG TÀI KHOẢN (TÌM KIẾM, LỌC, XEM CHI TIẾT TỪNG DÒNG, SỬA, KHÓA)
 // =============================================================================
 function setupAccountsSection(el, initialUsers) {
   const container = el.querySelector("#acc-table-container");
@@ -799,15 +798,12 @@ function setupAccountsSection(el, initialUsers) {
                   <td>${escapeHtml(u.email || "—")}</td>
                   <td><span class="badge role-${u.role}">${ROLE_LABELS[u.role] || u.role}</span></td>
                   <td><span class="badge ${u.active ? "active" : "inactive"}">${u.active ? "Hoạt động" : "Đã khóa"}</span></td>
-                  <td class="actions" style="text-align:right;">
-                    <button class="btn btn-sm btn-toggle" data-acc-detail="${u.id}" title="Xem chi tiết lớp hoặc học sinh">
-                      Chi tiết
-                    </button>
-                    <button class="btn btn-sm btn-toggle" data-acc-toggle="${u.id}">
-                      ${u.active ? "Khóa" : "Mở khóa"}
-                    </button>
-                    <button class="btn btn-sm btn-toggle" data-acc-edit="${u.id}">Sửa</button>
-                    <button class="btn btn-sm btn-danger" data-acc-del="${u.id}">Xóa</button>
+                  <td class="actions">
+                    <div class="actions-grid actions-3">
+                      <button class="btn btn-sm btn-toggle" data-acc-detail="${u.id}" title="Xem chi tiết lớp hoặc học sinh">Chi tiết</button>
+                      <button class="btn btn-sm btn-toggle" data-acc-toggle="${u.id}">${u.active ? "Khóa" : "Mở khóa"}</button>
+                      <button class="btn btn-sm btn-toggle" data-acc-edit="${u.id}">Sửa</button>
+                    </div>
                   </td>
                 </tr>
                 <tr class="account-detail" data-detail-row="${u.id}" hidden>
@@ -849,20 +845,6 @@ function setupAccountsSection(el, initialUsers) {
         openEditAccountModal(user, () => {
           renderTable();
           flash(el, `Đã cập nhật thông tin tài khoản ${user.fullName}.`);
-        });
-      })
-    );
-
-    // Xóa tài khoản
-    container.querySelectorAll("[data-acc-del]").forEach((btn) =>
-      btn.addEventListener("click", () => {
-        const user = initialUsers.find((u) => u.id === btn.dataset.accDel);
-        if (!user) return;
-        openDeleteAccountModal(user, () => {
-          const idx = initialUsers.findIndex((u) => u.id === user.id);
-          if (idx >= 0) initialUsers.splice(idx, 1);
-          renderTable();
-          flash(el, `Đã xóa tài khoản ${user.fullName}.`);
         });
       })
     );
@@ -969,17 +951,19 @@ function setupClassesSection(el, allClasses) {
                   </td>
                   <td class="muted">${formatSchedule(c.schedule)}</td>
                   <td>${statusBadge(c.status)}</td>
-                  <td class="actions" style="text-align:right;">
-                    ${
-                      c.status === "open"
-                        ? `<button class="btn btn-sm btn-warn" data-cls-toggle-status="${c.id}" data-action="close">Đóng lớp</button>`
-                        : c.status === "closed"
-                        ? `<span class="muted" style="font-size:12px;">Chờ yêu cầu mở lại từ GV</span>`
-                        : ""
-                    }
-                    <button class="btn btn-sm btn-primary" data-cls-view="${c.id}">
-                      Xem chi tiết
-                    </button>
+                  <td class="actions">
+                    <div class="actions-grid">
+                      ${
+                        c.status === "open"
+                          ? `<button class="btn btn-sm btn-warn" data-cls-toggle-status="${c.id}" data-action="close">Đóng lớp</button>`
+                          : c.status === "closed"
+                          ? `<span class="muted" style="font-size:12px;">Chờ yêu cầu mở lại từ GV</span>`
+                          : ""
+                      }
+                      <button class="btn btn-sm btn-primary" data-cls-view="${c.id}">
+                        Xem chi tiết
+                      </button>
+                    </div>
                   </td>
                 </tr>`
             )
@@ -1059,11 +1043,13 @@ function setupParentLinksSection(el) {
                           </div>`
                         : `<span class="muted">Chưa liên kết học sinh nào</span>`}
                     </td>
-                    <td class="actions" style="text-align:right;">
-                      ${student
-                        ? `<button class="btn btn-sm btn-warn" data-pl-unlink="${p.id}" title="Hủy liên kết">${ICONS.close}</button>
-                           <button class="btn btn-sm btn-primary" data-pl-change="${p.id}" title="Thay đổi học sinh">${ICONS.edit}</button>`
-                        : `<button class="btn btn-sm btn-primary" data-pl-link="${p.id}" title="Liên kết">${ICONS.plus}</button>`}
+                    <td class="actions">
+                      <div class="actions-grid">
+                        ${student
+                          ? `<button class="btn btn-sm btn-warn" data-pl-unlink="${p.id}" title="Hủy liên kết">${ICONS.close}</button>
+                             <button class="btn btn-sm btn-primary" data-pl-change="${p.id}" title="Thay đổi học sinh">${ICONS.edit}</button>`
+                          : `<button class="btn btn-sm btn-primary" data-pl-link="${p.id}" title="Liên kết">${ICONS.plus}</button>`}
+                      </div>
                     </td>
                   </tr>`;
               }
@@ -1906,37 +1892,6 @@ function openEditAccountModal(user, onSaved) {
         } catch (e) {
           err.textContent = e.message;
           err.hidden = false;
-        }
-      });
-    },
-  });
-}
-
-// =============================================================================
-// MODAL XÓA TÀI KHOẢN
-// =============================================================================
-function openDeleteAccountModal(user, onDeleted) {
-  openModal({
-    title: "Xác nhận xóa tài khoản",
-    body: `
-      <p>Bạn chắc chắn muốn xóa vĩnh viễn tài khoản <strong>${escapeHtml(user.fullName)}</strong> (@${escapeHtml(user.username)})?</p>
-      <p class="muted">Các lớp đăng ký, điểm số, điểm danh và các liên kết liên quan sẽ được tự động dọn dẹp theo quy định.</p>
-      <p class="form-error" id="acc-del-error" role="alert" hidden></p>`,
-    foot: `
-      <button class="btn" data-close>Hủy</button>
-      <button class="btn btn-danger" id="acc-del-confirm">Xóa vĩnh viễn</button>`,
-    onMount: (root, close) => {
-      root.querySelector("#acc-del-confirm").addEventListener("click", () => {
-        try {
-          deleteUser(user.id);
-          close();
-          onDeleted();
-        } catch (e) {
-          const err = root.querySelector("#acc-del-error");
-          if (err) {
-            err.textContent = e.message;
-            err.hidden = false;
-          }
         }
       });
     },
