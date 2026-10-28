@@ -80,6 +80,12 @@ export function renderRegisterPage(container) {
             <span class="form-hint">Mã học sinh được hiển thị trên dashboard học sinh, ví dụ: s-01</span>
           </div>
 
+          <div class="form-field" id="phone-field">
+            <label for="reg-phone">Số điện thoại phụ huynh</label>
+            <input id="reg-phone" name="phone" type="tel" placeholder="VD: 0901234567" />
+            <span class="form-hint">Dùng để liên lạc trực tiếp khi cần thiết.</span>
+          </div>
+
           <p id="register-error" class="form-error" role="alert" hidden></p>
 
           <button type="submit" class="btn-primary">Đăng ký</button>
@@ -93,9 +99,11 @@ export function renderRegisterPage(container) {
   const roleSelect = container.querySelector("#reg-role");
   const subjectField = container.querySelector("#subject-field");
   const studentIdField = container.querySelector("#student-id-field");
+  const phoneField = container.querySelector("#phone-field");
   const toggleRoleFields = () => {
     subjectField.style.display = roleSelect.value === "teacher" ? "flex" : "none";
     studentIdField.style.display = roleSelect.value === "parent" ? "flex" : "none";
+    phoneField.style.display = roleSelect.value === "parent" ? "flex" : "none";
   };
   roleSelect.addEventListener("change", toggleRoleFields);
   toggleRoleFields();
@@ -133,7 +141,7 @@ export function renderRegisterPage(container) {
       if (form.get("role") === "teacher") {
         registerTeacher({ ...base, subject: form.get("subject") });
       } else if (form.get("role") === "parent") {
-        registerParent({ ...base, studentId: form.get("studentId") });
+        registerParent({ ...base, studentId: form.get("studentId"), phone: form.get("phone") });
       } else {
         registerStudent(base);
       }

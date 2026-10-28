@@ -10,6 +10,7 @@ import {
   createClass,
   getClassById,
   listStudentsOfClass,
+  validateClassName,
   MAX_SESSIONS_PER_WEEK,
   MAX_STUDENTS_PER_CLASS,
 } from "../../modules/classes/classes.service.js";
@@ -56,7 +57,7 @@ const pct = (a, b) => Math.min(100, Math.round((a / (b || 1)) * 100));
 const statusBadge = (status) => {
   if (status === "open") return `<span class="badge open">Đang mở</span>`;
   if (status === "pending")
-    return `<span class="badge late">Chờ phê duyệt</span>`;
+    return `<span class="badge pending">Chờ phê duyệt</span>`;
   return `<span class="badge closed">Đã đóng</span>`;
 };
 
@@ -2191,7 +2192,10 @@ function openCreateClassModal(teacher, onDone) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div>
             <label for="new-cls-name">Tên lớp học *</label>
-            <input id="new-cls-name" type="text" placeholder="Ví dụ: Toán 9 Nâng cao - K3" />
+            <input id="new-cls-name" type="text" placeholder="Ví dụ: ${subjectLabel(teacher.subject)} 9A" />
+            <small class="muted" style="display:block;font-size:11px;margin-top:4px;">
+              Quy chuẩn: [Tên môn] + [Khối/Mã lớp]. Ví dụ: ${subjectLabel(teacher.subject)} 9A, ${subjectLabel(teacher.subject)} 9B.
+            </small>
           </div>
           <div>
             <label for="new-cls-max">Sĩ số tối đa</label>
@@ -2288,7 +2292,7 @@ function openCreateClassModal(teacher, onDone) {
         const err = root.querySelector("#cls-new-error");
         err.hidden = true;
 
-        const className = root.querySelector("#new-cls-name").value.trim();
+        let className = root.querySelector("#new-cls-name").value.trim();
         const maxSlot = parseInt(root.querySelector("#new-cls-max").value, 10);
         const count = parseInt(countSelect.value, 10);
 
@@ -2309,6 +2313,13 @@ function openCreateClassModal(teacher, onDone) {
 
         if (!className) {
           err.textContent = "Vui lòng nhập tên lớp học.";
+          err.hidden = false;
+          return;
+        }
+        try {
+          className = validateClassName(className, teacher.subject);
+        } catch (e) {
+          err.textContent = e.message;
           err.hidden = false;
           return;
         }

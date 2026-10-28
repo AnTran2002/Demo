@@ -511,6 +511,18 @@ body {
 .badge.subject { color: #4f46e5; background: #eef2ff; }
 .badge.open, .badge.active { color: #0d8a5f; background: #e6f8f0; }
 .badge.closed, .badge.inactive { color: #c0392b; background: #fdecec; }
+.badge.pending {
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+.badge.pending::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
 
 /* Banner ch�o */
 .welcome-banner {
@@ -671,6 +683,8 @@ tbody td { border-bottom: none; }
 tbody tr { border-bottom: 1px solid var(--line); }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:hover td { background: #faf9ff; }
+tbody tr.class-row-pending td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+tbody tr.class-row-pending:hover td { background: #fffaf0; }
 td.actions { text-align: right; }
 
 .muted { color: var(--muted); }
@@ -2287,6 +2301,7 @@ button.cal-cell { cursor: pointer; transition: border-color 0.15s, background-co
 }
 .modal-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--brand-ink); }
 .modal-head .icon-btn svg { width: 18px; height: 18px; }
+.unlink-warning-icon svg { width: 20px; height: 20px; }
 
 .modal-body {
   display: flex;

@@ -29,7 +29,7 @@ import {
 } from "../../modules/auth/auth.service.js";
 import { Session } from "../../core/session.js";
 import { Router } from "../../core/router.js";
-import { subjectLabel, WEEKDAYS, formatDate, todayStr } from "../../data/constants.js";
+import { SUBJECTS, subjectLabel, WEEKDAYS, formatDate, todayStr } from "../../data/constants.js";
 import { escapeHtml } from "../../core/html.js";
 import { DB } from "../../core/db.js";
 import { seedDatabase } from "../../data/seed.js";
@@ -66,9 +66,22 @@ const REQ_STATUS_BADGES = {
 
 const statusBadge = (status) => {
   if (status === "open") return `<span class="badge open">Đang mở</span>`;
-  if (status === "pending") return `<span class="badge late">Chờ phê duyệt</span>`;
+  if (status === "pending") return `<span class="badge pending">Chờ phê duyệt</span>`;
   return `<span class="badge closed">Đã đóng</span>`;
 };
+
+// Chuẩn hoá chuỗi để tìm kiếm không phân biệt hoa/thường và dấu tiếng Việt.
+const searchKey = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .trim();
+
+// Cho phép các khu vực khác (ví dụ sửa tài khoản) làm mới bảng liên kết PH - HS
+// mà không cần render lại toàn bộ dashboard.
+let refreshParentLinksTable = null;
 
 const dayLabels = (schedule) => {
   const labels = [];
@@ -450,6 +463,31 @@ function renderAdminOverviewPage(el) {
           </div>
         </div>
 
+        <!-- Toolbar tìm kiếm & lọc lớp học -->
+        <div class="overview-toolbar">
+          <div class="toolbar-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="cls-search-input" placeholder="Tìm theo tên lớp hoặc giáo viên..." />
+          </div>
+          <div class="toolbar-filters">
+            <select class="toolbar-select" id="cls-subject-select">
+              <option value="">Tất cả bộ môn</option>
+              ${SUBJECTS.map((s) => {
+                const count = allClasses.filter((c) => c.subject === s).length;
+                return `<option value="${s}">${subjectLabel(s)} (${count})</option>`;
+              }).join("")}
+            </select>
+            <select class="toolbar-select" id="cls-status-select">
+              <option value="">Tất cả trạng thái</option>
+              <option value="open">Đang mở (${allClasses.filter((c) => c.status === "open").length})</option>
+              <option value="pending">Chờ phê duyệt (${allClasses.filter((c) => c.status === "pending").length})</option>
+              <option value="closed">Đã đóng (${allClasses.filter((c) => c.status === "closed").length})</option>
+            </select>
+          </div>
+        </div>
+
         <div class="table-wrap" id="cls-table-container">
           <!-- Bảng render động bởi JS -->
         </div>
@@ -549,6 +587,24 @@ function renderAdminOverviewPage(el) {
             Mỗi tài khoản Phụ huynh chỉ được liên kết với đúng 1 học sinh (con). Học sinh đã có phụ huynh
             sẽ không xuất hiện trong danh sách chọn khi tạo liên kết mới.
           </p>
+
+          <!-- Toolbar tìm kiếm & lọc liên kết phụ huynh - học sinh -->
+          <div class="overview-toolbar" style="padding:0 0 14px;background:transparent;border-bottom:none;">
+            <div class="toolbar-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="pl-search-input" aria-label="Tìm kiếm phụ huynh theo tên, username, email hoặc số điện thoại" placeholder="Tìm theo tên, username, email hoặc SĐT..." />
+            </div>
+            <div class="toolbar-filters">
+              <select class="toolbar-select" id="pl-status-select" aria-label="Lọc theo trạng thái liên kết">
+                <option value="">Tất cả trạng thái liên kết</option>
+                <option value="linked">Đã liên kết học sinh</option>
+                <option value="unlinked">Chưa liên kết học sinh</option>
+              </select>
+            </div>
+          </div>
+
           <div class="table-wrap" id="parentlinks-table-container"></div>
         </div>
       </div>
@@ -850,7 +906,10 @@ function setupAccountsSection(el, initialUsers) {
         const user = initialUsers.find((u) => u.id === btn.dataset.accEdit);
         if (!user) return;
         openEditAccountModal(user, () => {
+          const updated = DB.findById("users", user.id);
+          if (updated) Object.assign(user, updated);
           renderTable();
+          refreshParentLinksTable?.();
           flash(el, `Đã cập nhật thông tin tài khoản ${user.fullName}.`);
         });
       })
@@ -913,16 +972,50 @@ function accountClassesBlock(user) {
 function setupClassesSection(el, allClasses) {
   const container = el.querySelector("#cls-table-container");
   const countChip = el.querySelector("#chip-classes-count");
+  const searchInput = el.querySelector("#cls-search-input");
+  const subjectSelect = el.querySelector("#cls-subject-select");
+  const statusSelect = el.querySelector("#cls-status-select");
 
-  if (countChip) {
-    countChip.textContent = `${allClasses.length} lớp (${allClasses.filter((c) => c.status === "open").length} đang mở)`;
+  function getFilteredClasses() {
+    const q = searchKey(searchInput?.value);
+    const subject = subjectSelect?.value || "";
+    const status = statusSelect?.value || "";
+
+    return allClasses.filter((c) => {
+      if (subject && c.subject !== subject) return false;
+      if (status && c.status !== status) return false;
+      if (q) {
+        const matchesName = searchKey(c.className).includes(q);
+        const matchesTeacher = searchKey(c.teacherName).includes(q);
+        if (!matchesName && !matchesTeacher) return false;
+      }
+      return true;
+    });
   }
 
   function renderCompactTable() {
+    const list = getFilteredClasses();
+    const openCount = list.filter((c) => c.status === "open").length;
+    if (countChip) {
+      const totalLabel =
+        list.length === allClasses.length
+          ? String(allClasses.length)
+          : `${list.length}/${allClasses.length}`;
+      countChip.textContent = `${totalLabel} lớp (${openCount} đang mở)`;
+    }
+
     if (!allClasses.length) {
       container.innerHTML = `
         <div class="empty" style="padding:28px;text-align:center;color:var(--muted);">
           Chưa có lớp học nào trong hệ thống.
+        </div>`;
+      return;
+    }
+
+    if (!list.length) {
+      container.innerHTML = `
+        <div class="empty" style="padding:28px;text-align:center;color:var(--muted);">
+          Không tìm thấy lớp học nào khớp với bộ lọc.
         </div>`;
       return;
     }
@@ -942,10 +1035,10 @@ function setupClassesSection(el, allClasses) {
           </tr>
         </thead>
         <tbody>
-          ${allClasses
+          ${list
             .map(
               (c, i) => `
-                <tr>
+                <tr${c.status === "pending" ? ' class="class-row-pending"' : ""}>
                   <td>${i + 1}</td>
                   <td><strong>${escapeHtml(c.className)}</strong></td>
                   <td><span class="badge subject">${subjectLabel(c.subject)}</span></td>
@@ -979,6 +1072,10 @@ function setupClassesSection(el, allClasses) {
     });
   }
 
+  searchInput?.addEventListener("input", renderCompactTable);
+  subjectSelect?.addEventListener("change", renderCompactTable);
+  statusSelect?.addEventListener("change", renderCompactTable);
+
   renderCompactTable();
 }
 
@@ -989,17 +1086,56 @@ function setupParentLinksSection(el) {
   const container = el.querySelector("#parentlinks-table-container");
   const countChip = el.querySelector("#chip-parentlinks-count");
   const btnAdd = el.querySelector("#btn-add-parent-link");
+  const searchInput = el.querySelector("#pl-search-input");
+  const statusSelect = el.querySelector("#pl-status-select");
 
   function loadParents() {
     return DB.getAll("users").filter((u) => u.role === "parent");
   }
 
+  function getFilteredParents(parents) {
+    const q = searchKey(searchInput?.value);
+    const linkStatus = statusSelect?.value || "";
+
+    return parents.filter((parent) => {
+      const student = getLinkedStudent(parent.id);
+      if (linkStatus === "linked" && !student) return false;
+      if (linkStatus === "unlinked" && student) return false;
+      if (q) {
+        const matches =
+          searchKey(parent.fullName).includes(q) ||
+          searchKey(parent.username).includes(q) ||
+          searchKey(parent.email).includes(q) ||
+          searchKey(parent.phone).includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }
+
   function renderTable() {
     const parents = loadParents();
-    if (countChip) countChip.textContent = `${parents.length} tài khoản phụ huynh`;
+    const filtered = getFilteredParents(parents);
+
+    if (countChip) {
+      countChip.textContent =
+        filtered.length === parents.length
+          ? `${parents.length} tài khoản phụ huynh`
+          : `${filtered.length}/${parents.length} tài khoản phụ huynh`;
+    }
+
+    // Đồng bộ badge menu Sidebar cho mục Liên kết PH - HS
+    updateAdminSidebarBadges(el.closest(".app-shell"), {
+      parentlinks: parents.filter((p) => !getLinkedStudent(p.id)).length,
+    });
 
     if (!parents.length) {
       container.innerHTML = `<div class="empty" style="padding:28px;text-align:center;color:var(--muted);">Chưa có tài khoản phụ huynh nào.</div>`;
+      return;
+    }
+
+    if (!filtered.length) {
+      container.innerHTML = `<div class="empty" style="padding:28px;text-align:center;color:var(--muted);">Không tìm thấy phụ huynh nào khớp với bộ lọc.</div>`;
       return;
     }
 
@@ -1007,11 +1143,11 @@ function setupParentLinksSection(el) {
       <table>
         <thead>
           <tr>
-            <th>#</th><th>Phụ huynh</th><th>Tài khoản</th><th>Email</th><th>Học sinh liên kết</th><th style="text-align:right;">Thao tác</th>
+            <th>#</th><th>Phụ huynh</th><th>Tài khoản</th><th>Email</th><th>Số điện thoại</th><th>Học sinh liên kết</th><th style="text-align:right;">Thao tác</th>
           </tr>
         </thead>
         <tbody>
-          ${parents
+          ${filtered
             .map(
               (p, i) => {
                 const student = getLinkedStudent(p.id);
@@ -1021,6 +1157,11 @@ function setupParentLinksSection(el) {
                     <td><strong>${escapeHtml(p.fullName)}</strong></td>
                     <td><span class="badge" style="background:#f4efff;color:#5e1bd6;">@${escapeHtml(p.username)}</span></td>
                     <td>${escapeHtml(p.email || "—")}</td>
+                    <td>${
+                      p.phone
+                        ? `<a href="tel:${escapeHtml(p.phone)}" title="Gọi điện thoại" style="color:#5e1bd6;font-weight:700;text-decoration:none;">${escapeHtml(p.phone)}</a>`
+                        : `<span class="muted">—</span>`
+                    }</td>
                     <td>
                       ${student
                         ? `<div>
@@ -1062,28 +1203,21 @@ function setupParentLinksSection(el) {
     container.querySelectorAll("[data-pl-unlink]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const parent = loadParents().find((p) => p.id === btn.dataset.plUnlink);
+        if (!parent) return;
         const student = getLinkedStudent(parent.id);
-        if (
-          !parent ||
-          !student ||
-          !confirm(`Bạn chắc chắn muốn hủy liên kết "${escapeHtml(parent.fullName)}" với học sinh "${escapeHtml(student.fullName)}"?`)
-        )
-          return;
-        try {
-          unlinkParent(parent.id);
+        if (!student) return;
+        openUnlinkConfirmModal(parent, student, () => {
           renderTable();
-          flash(el, `Đã hủy liên kết phụ huynh ${escapeHtml(parent.fullName)}.`);
-        } catch (e) {
-          flash(el, e.message, "error");
-        }
+          flash(el, `Đã hủy liên kết phụ huynh ${parent.fullName}.`);
+        });
       });
     });
-
-    // Đồng bộ badge menu Sidebar cho mục Liên kết PH - HS
-    updateAdminSidebarBadges(el.closest('.app-shell'), {
-      parentlinks: loadParents().filter((p) => !getLinkedStudent(p.id)).length,
-    });
   }
+
+  refreshParentLinksTable = renderTable;
+
+  searchInput?.addEventListener("input", renderTable);
+  statusSelect?.addEventListener("change", renderTable);
 
   btnAdd?.addEventListener("click", () => {
     const unlinkedParents = loadParents().filter((p) => !getLinkedStudent(p.id));
@@ -1095,6 +1229,47 @@ function setupParentLinksSection(el) {
   });
 
   renderTable();
+}
+
+// Popup xác nhận trước khi hủy liên kết phụ huynh - học sinh.
+function openUnlinkConfirmModal(parent, student, onConfirmed) {
+  openModal({
+    title: "Xác nhận hủy liên kết",
+    body: `
+      <div style="display:flex;gap:14px;align-items:flex-start;">
+        <span class="unlink-warning-icon" style="width:42px;height:42px;border-radius:50%;background:#fdecec;color:#c0392b;display:grid;place-items:center;flex:none;">
+          ${ICONS.close}
+        </span>
+        <div>
+          <p style="margin:0 0 8px;font-size:14.5px;line-height:1.55;color:var(--brand-ink);">
+            Bạn có chắc chắn muốn hủy liên kết giữa phụ huynh
+            <strong>${escapeHtml(parent.fullName)}</strong> và học sinh
+            <strong>${escapeHtml(student.fullName)}</strong> không?
+          </p>
+          <p class="muted" style="margin:0;font-size:12.5px;">
+            Sau khi hủy, tài khoản phụ huynh sẽ không còn theo dõi được thông tin học tập của học sinh này.
+          </p>
+        </div>
+      </div>
+      <p class="form-error" id="pl-unlink-error" role="alert" hidden></p>`,
+    foot: `
+      <button class="btn" data-close>Hủy</button>
+      <button class="btn btn-danger" id="pl-unlink-confirm">Xác nhận hủy liên kết</button>`,
+    onMount: (root, close) => {
+      root.querySelector("#pl-unlink-confirm").addEventListener("click", () => {
+        const err = root.querySelector("#pl-unlink-error");
+        err.hidden = true;
+        try {
+          unlinkParent(parent.id);
+          close();
+          onConfirmed();
+        } catch (e) {
+          err.textContent = e.message;
+          err.hidden = false;
+        }
+      });
+    },
+  });
 }
 
 function openParentLinkModal(parent, el, onSaved) {
@@ -1109,7 +1284,7 @@ function openParentLinkModal(parent, el, onSaved) {
     size: "modal-lg",
     body: `
       <p class="muted">
-        Phụ huynh: <strong>${escapeHtml(parent.fullName)}</strong> (@${escapeHtml(parent.username)}) · Email: ${escapeHtml(parent.email || "—")}
+        Phụ huynh: <strong>${escapeHtml(parent.fullName)}</strong> (@${escapeHtml(parent.username)}) · Email: ${escapeHtml(parent.email || "—")} · SĐT: ${escapeHtml(parent.phone || "—")}
       </p>
       <div class="modal-form">
         <div>
@@ -1729,6 +1904,10 @@ function openCreateUserModal(onCreated) {
               ${students.map((s) => `<option value="${s.id}">${escapeHtml(s.fullName)} (Mã: ${s.id})</option>`).join("")}
             </select>
           </div>
+          <div id="new-phone-wrap" style="display:none;">
+            <label for="new-phone">Số điện thoại phụ huynh</label>
+            <input id="new-phone" type="tel" placeholder="VD: 0901234567" />
+          </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -1775,12 +1954,14 @@ function openCreateUserModal(onCreated) {
       const roleSel = root.querySelector("#new-role");
       const subjWrap = root.querySelector("#new-subject-wrap");
       const pStudWrap = root.querySelector("#new-parent-student-wrap");
+      const phoneWrap = root.querySelector("#new-phone-wrap");
       const err = root.querySelector("#new-user-error");
 
       roleSel.addEventListener("change", () => {
         const r = roleSel.value;
         subjWrap.style.display = r === "teacher" ? "block" : "none";
         pStudWrap.style.display = r === "parent" ? "block" : "none";
+        phoneWrap.style.display = r === "parent" ? "block" : "none";
       });
 
       root.querySelector("#btn-save-new-user").addEventListener("click", () => {
@@ -1790,6 +1971,7 @@ function openCreateUserModal(onCreated) {
         const username = root.querySelector("#new-username").value.trim();
         const email = root.querySelector("#new-email").value.trim();
         const password = root.querySelector("#new-password").value;
+        const phone = root.querySelector("#new-phone").value.trim();
         const gender = root.querySelector("#new-gender").value;
         const dob = root.querySelector("#new-dob").value;
 
@@ -1802,7 +1984,7 @@ function openCreateUserModal(onCreated) {
           } else if (role === "parent") {
             const studentId = root.querySelector("#new-student-id").value;
             if (!studentId) throw new Error("Vui lòng chọn học sinh liên kết cho phụ huynh");
-            registerParent({ username, password, email, fullName, gender, dob, studentId });
+            registerParent({ username, password, email, fullName, gender, dob, studentId, phone });
           }
           close();
           onCreated();
@@ -1816,7 +1998,7 @@ function openCreateUserModal(onCreated) {
 }
 
 // =============================================================================
-// MODAL SỬA THÔNG TIN TÀI KHOẢN (GMAIL / MẬT KHẨU)
+// MODAL SỬA THÔNG TIN TÀI KHOẢN (GMAIL / SĐT / MẬT KHẨU)
 // =============================================================================
 function openEditAccountModal(user, onSaved) {
   openModal({
@@ -1828,6 +2010,14 @@ function openEditAccountModal(user, onSaved) {
           <label for="acc-email">Gmail liên hệ</label>
           <input id="acc-email" type="email" value="${escapeHtml(user.email || "")}" />
         </div>
+        ${
+          user.role === "parent"
+            ? `<div>
+                <label for="acc-phone">Số điện thoại phụ huynh</label>
+                <input id="acc-phone" type="tel" value="${escapeHtml(user.phone || "")}" placeholder="VD: 0901234567" />
+              </div>`
+            : ""
+        }
         <div>
           <label for="acc-password">Mật khẩu mới</label>
           <input id="acc-password" type="password" autocomplete="new-password" placeholder="Để trống nếu muốn giữ nguyên mật khẩu cũ" />
@@ -1844,6 +2034,7 @@ function openEditAccountModal(user, onSaved) {
         try {
           updateUserCredentials(user.id, {
             email: root.querySelector("#acc-email").value.trim(),
+            phone: root.querySelector("#acc-phone")?.value.trim(),
             password: root.querySelector("#acc-password").value,
           });
           close();
