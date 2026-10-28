@@ -126,15 +126,21 @@ export function getTeacherWeekSchedule(teacherId) {
 }
 
 export function getStudentOverview(studentId) {
-  const enrollments = DB.getAll("enrollments").filter(
+  const allEnrollments = DB.getAll("enrollments");
+  const enrollments = allEnrollments.filter(
     (e) => e.studentId === studentId && e.status === "active"
   );
   const classes = DB.getAll("classes");
   const enrolledIds = new Set(enrollments.map((e) => e.classId));
-  const enrolledCount = (classId) =>
-    DB.getAll("enrollments").filter(
-      (e) => e.classId === classId && e.status === "active"
-    ).length;
+  const enrolledCounts = new Map();
+  for (const enrollment of allEnrollments) {
+    if (enrollment.status !== "active") continue;
+    enrolledCounts.set(
+      enrollment.classId,
+      (enrolledCounts.get(enrollment.classId) || 0) + 1
+    );
+  }
+  const enrolledCount = (classId) => enrolledCounts.get(classId) || 0;
 
   const myClasses = enrollments
     .map((e) => {
