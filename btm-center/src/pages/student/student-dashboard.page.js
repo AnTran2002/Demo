@@ -1,5 +1,6 @@
 // pages/student/student-dashboard.page.js — Redesign Toàn diện: Trang Tổng quan Học tập Hợp nhất (Student Role)
 import { Session } from "../../core/session.js";
+import { DB } from "../../core/db.js";
 import { renderShell, ICONS, formatSchedule } from "../shell.js";
 import { getStudentOverview } from "../../modules/dashboard/dashboard.service.js";
 import { enroll } from "../../modules/enrollment/enrollment.service.js";
@@ -7,13 +8,9 @@ import {
   requestCancelClass,
   getPendingRequest,
 } from "../../modules/notifications/notifications.service.js";
-import {
-  listSessionsByClass,
-  listAttendanceBySession,
-} from "../../modules/sessions/sessions.service.js";
+import { listSessionsByClass } from "../../modules/sessions/sessions.service.js";
 import { listGradesByStudentInClass } from "../../modules/grades/grades.service.js";
 import { listCommentsByStudent } from "../../modules/comments/comments.service.js";
-import { listMaterialsBySession } from "../../modules/materials/materials.service.js";
 import { listStudentsOfClass, getClassById } from "../../modules/classes/classes.service.js";
 import { escapeHtml } from "../../core/html.js";
 import {
@@ -138,6 +135,14 @@ export function renderStudentDashboard(container) {
     sidebar.classList.add("student-sidebar");
     const sidebarStyles = document.createElement("style");
     sidebarStyles.textContent = `
+      #tab-overview .overview-panel {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 320px;
+      }
+      #tab-overview .welcome-banner::after {
+        animation: none !important;
+        display: none;
+      }
       .student-sidebar {
         width: 240px;
         flex: none;
@@ -223,15 +228,17 @@ function setupStudentSidebarNav(container) {
   const content = container.querySelector("#tab-content");
   if (!nav || !content) return;
 
+  const sections = new Map(
+    Array.from(content.querySelectorAll(".overview-panel"), (panel) => [panel.id, panel])
+  );
   nav.querySelectorAll(".nav-item:not(.logout)").forEach((button) => {
     button.addEventListener("click", () => {
-      const section = Array.from(content.querySelectorAll(".overview-panel"))
-        .find((panel) => panel.id === button.dataset.tab);
+      const section = sections.get(button.dataset.tab);
       if (!section) return;
 
       setStudentSidebarActive(container, section.id);
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+      requestAnimationFrame(() => section.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }, { passive: true });
   });
 }
 
@@ -250,12 +257,26 @@ function renderStudentOverviewPage(el, student) {
   const myClasses = data.myClasses;
   const openClasses = data.openClasses;
 
+  const [allGrades, allSessions, allAttendance, allMaterialsRaw] = [
+    DB.getAll("grades"),
+    DB.getAll("sessions"),
+    DB.getAll("attendance"),
+    DB.getAll("materials"),
+  ];
+  const gradeByClass = new Map();
+  for (const grade of allGrades) {
+    if (grade.studentId !== student.id) continue;
+    const grades = gradeByClass.get(grade.classId) || [];
+    grades.push({ ...grade, type: ({ "Thường xuyên": "15m", "Định kỳ": "45m", "Học kỳ": "semester" })[grade.type] || grade.type });
+    gradeByClass.set(grade.classId, grades);
+  }
+
   // Thu thập điểm của học sinh ở tất cả các môn
   let totalScore = 0;
   let totalCoeff = 0;
   const classGradesMap = new Map();
   myClasses.forEach((c) => {
-    const grades = listGradesByStudentInClass(c.id, student.id);
+    const grades = gradeByClass.get(c.id) || [];
     const g15 = grades.filter((g) => g.type === "15m").map((g) => g.score);
     const g45 = grades.filter((g) => g.type === "45m").map((g) => g.score);
     const gSem = grades.filter((g) => g.type === "semester").map((g) => g.score);
@@ -270,15 +291,33 @@ function renderStudentOverviewPage(el, student) {
   });
   const overallAvg = totalCoeff > 0 ? (totalScore / totalCoeff).toFixed(1) : "—";
 
+  const sessionsByClass = new Map();
+  for (const session of allSessions) {
+    const list = sessionsByClass.get(session.classId) || [];
+    list.push(session);
+    sessionsByClass.set(session.classId, list);
+  }
+  const attendanceBySession = new Map();
+  for (const record of allAttendance) {
+    const list = attendanceBySession.get(record.sessionId) || [];
+    list.push(record);
+    attendanceBySession.set(record.sessionId, list);
+  }
+  const materialsBySession = new Map();
+  for (const material of allMaterialsRaw) {
+    const list = materialsBySession.get(material.sessionId) || [];
+    list.push(material);
+    materialsBySession.set(material.sessionId, list);
+  }
+
   // Thống kê chuyên cần của học sinh (các buổi đã điểm danh)
   let attTotal = 0;
   let attPresent = 0;
   const sessionsList = [];
   myClasses.forEach((c) => {
-    const sessions = listSessionsByClass(c.id);
+    const sessions = sessionsByClass.get(c.id) || [];
     sessions.forEach((s) => {
-      const records = listAttendanceBySession(s.id);
-      const myRec = records.find((a) => a.studentId === student.id);
+      const myRec = (attendanceBySession.get(s.id) || []).find((a) => a.studentId === student.id);
       if (myRec) {
         attTotal++;
         if (myRec.status === "present" || myRec.status === "late") attPresent++;
@@ -314,11 +353,11 @@ function renderStudentOverviewPage(el, student) {
   // Thu thập tất cả tài liệu bài học của các lớp đang học
   const allMaterials = [];
   myClasses.forEach((c) => {
-    listSessionsByClass(c.id).forEach((s) => {
-      listMaterialsBySession(s.id).forEach((m) => {
-        allMaterials.push({ ...m, sessionTitle: s.title, date: s.date, className: c.className });
-      });
-    });
+    for (const session of sessionsByClass.get(c.id) || []) {
+      for (const material of materialsBySession.get(session.id) || []) {
+        allMaterials.push({ ...material, sessionTitle: session.title, date: session.date, className: c.className });
+      }
+    }
   });
 
   // Nhận xét từ giáo viên
@@ -920,7 +959,7 @@ function setupStudentActions(el, student) {
     e?.preventDefault();
     const targetEl = el.querySelector("#overview-enroll");
     if (targetEl) {
-      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      requestAnimationFrame(() => targetEl.scrollIntoView({ behavior: "smooth", block: "start" }));
       setStudentSidebarActive(el.closest(".app-shell"), "overview-enroll");
       targetEl.style.transition = "box-shadow 0.3s ease, border-color 0.3s ease";
       targetEl.style.borderColor = "#863bff";
