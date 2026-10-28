@@ -124,6 +124,7 @@ const DEFAULT_USERS = [
     role: "parent",
     fullName: "Nguyễn Thị Thu Hương",
     email: "thu.huong@gmail.com",
+    phone: "0901234567",
     gender: "Nữ",
     dob: "1985-03-08",
     studentId: "s-01", // con: Phạm Thu Trang
@@ -136,6 +137,7 @@ const DEFAULT_USERS = [
     role: "parent",
     fullName: "Vũ Văn Nam",
     email: "vu.van.nam@gmail.com",
+    phone: "0912345678",
     gender: "Nam",
     dob: "1982-07-19",
     studentId: "s-02", // con: Vũ Quang Huy
@@ -148,6 +150,7 @@ const DEFAULT_USERS = [
     role: "parent",
     fullName: "Đặng Thị Lan Anh",
     email: "dang.lan.anh@gmail.com",
+    phone: "0987654321",
     gender: "Nữ",
     dob: "1983-11-02",
     studentId: "s-03", // con: Đặng Bảo Ngọc
@@ -430,6 +433,28 @@ function purgeRetiredUsers() {
   });
 }
 
+// Migration 1 lần: bỏ hậu tố trạng thái từng bị ghi nhầm vào tên lớp, ví dụ
+// "Toán 9D (chờ phê duyệt)" → "Toán 9D". Trạng thái của lớp chỉ được hiển thị
+// ở cột Trạng thái, không được nằm trong tên lớp.
+const LEGACY_CLASS_STATUS_SUFFIX_RE =
+  /\s*(?:[-–—:·]\s*)?[([{]?\s*(?:đang\s+)?chờ\s+(?:phê\s+duyệt|duyệt|mở)\s*[)\]}]?\s*$/iu;
+
+function migrateLegacyClassNames() {
+  const classes = DB.getAll("classes");
+  if (!classes.length) return;
+
+  let changed = false;
+  const cleaned = classes.map((cls) => {
+    const raw = String(cls.className || "").trim();
+    const className = raw.replace(LEGACY_CLASS_STATUS_SUFFIX_RE, "").trim();
+    if (!className || className === raw) return cls;
+    changed = true;
+    return { ...cls, className };
+  });
+
+  if (changed) DB.saveAll("classes", cleaned);
+}
+
 // Dọn mọi liên kết trỏ tới tài khoản không còn tồn tại. Hàm này KHÔNG phụ thuộc
 // danh sách tài khoản cần gỡ nên tự đúng sau mọi lần xoá, kể cả khi dữ liệu được
 // tạo ra sau đó (nếu kiểm tra nằm chung trong purgeRetiredUsers thì sẽ bị bỏ sót
@@ -483,11 +508,17 @@ export function seedDatabase() {
   // trong LEGACY_USERNAMES) → gộp ngay trong lần chạy này.
   dedupeLegacyUsers();
 
-  // Bổ sung trường còn thiếu (gender/email/dob) cho các tài khoản default đã tồn tại từ trước.
+  // Bổ sung trường còn thiếu (gender/email/dob/phone) cho các tài khoản default đã tồn tại từ trước.
   const current = DB.getAll("users");
   const needBackfill = current.some((u) => {
     const def = DEFAULT_USERS.find((d) => d.username === u.username);
-    return def && ((def.gender && !u.gender) || (def.email && !u.email) || (def.dob && !u.dob));
+    return (
+      def &&
+      ((def.gender && !u.gender) ||
+        (def.email && !u.email) ||
+        (def.dob && !u.dob) ||
+        (def.phone && u.phone == null))
+    );
   });
   if (needBackfill) {
     DB.saveAll(
@@ -495,7 +526,13 @@ export function seedDatabase() {
       current.map((u) => {
         const def = DEFAULT_USERS.find((d) => d.username === u.username);
         return def
-          ? { ...u, gender: u.gender || def.gender, email: u.email || def.email, dob: u.dob || def.dob }
+          ? {
+              ...u,
+              gender: u.gender || def.gender,
+              email: u.email || def.email,
+              dob: u.dob || def.dob,
+              phone: u.phone == null ? def.phone : u.phone,
+            }
           : u;
       })
     );
@@ -534,6 +571,9 @@ export function seedDatabase() {
   if (!DB.getAll("classes").some((c) => c.id === DEMO_PENDING_CLASS.id)) {
     DB.saveAll("classes", [...DB.getAll("classes"), DEMO_PENDING_CLASS]);
   }
+
+  // Sửa dữ liệu cũ: lớp "Toán 9D (chờ phê duyệt)" được đổi về "Toán 9D".
+  migrateLegacyClassNames();
 
   const existingRequests = DB.getAll("class_requests");
   if (existingRequests.length === 0) {

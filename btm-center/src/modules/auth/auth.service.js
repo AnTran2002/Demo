@@ -8,6 +8,19 @@ import { assertStudentLinkable } from "../parents/parents.service.js";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,16}$/;
 const HASH_RE = /^[0-9a-f]{64}$/i;
+const PHONE_RE = /^(?:\+84|0)\d{9,10}$/;
+
+function normalizePhone(phone) {
+  return String(phone || "").replace(/[\s.-]/g, "");
+}
+
+function validatePhone(phone) {
+  const value = normalizePhone(phone);
+  if (value && !PHONE_RE.test(value)) {
+    throw new Error("Số điện thoại không hợp lệ (ví dụ: 0901234567)");
+  }
+  return value;
+}
 
 function validateRegistration({ username, password, email, fullName, gender, dob }) {
   if (!fullName || !fullName.trim()) throw new Error("Vui lòng nhập họ tên");
@@ -62,13 +75,14 @@ export function registerStudent({ username, password, email, fullName, gender, d
 }
 
 // Đăng ký phụ huynh: bắt buộc liên kết hợp lệ với 1 tài khoản học sinh qua mã học sinh.
-export function registerParent({ username, password, email, fullName, gender, dob, studentId }) {
+export function registerParent({ username, password, email, fullName, gender, dob, studentId, phone }) {
   validateRegistration({ username, password, email, fullName, gender, dob });
   const student = assertStudentLinkable(studentId);
   return DB.insert("users", {
     username,
     password: hashPassword(password),
     email,
+    phone: validatePhone(phone),
     fullName,
     gender,
     dob,
